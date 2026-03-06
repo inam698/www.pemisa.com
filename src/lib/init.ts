@@ -16,8 +16,10 @@ export function initializeApp() {
   try {
     logInfo("Initializing application...");
 
-    // Initialize cron jobs
-    if (process.env.NODE_ENV === "production" || process.env.ENABLE_CRON === "true") {
+    // Initialize cron jobs (skip on Vercel serverless — use Vercel Cron instead)
+    if (process.env.VERCEL) {
+      logInfo("Running on Vercel — cron jobs handled by Vercel Cron");
+    } else if (process.env.NODE_ENV === "production" || process.env.ENABLE_CRON === "true") {
       initializeCronJobs();
       logInfo("Cron jobs initialized");
     } else {

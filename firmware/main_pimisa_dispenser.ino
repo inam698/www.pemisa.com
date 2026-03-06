@@ -66,10 +66,10 @@ LiquidCrystal_I2C lcd(LCD_I2C_ADDR, LCD_COLS, LCD_ROWS);
 const byte ROWS = 4;
 const byte COLS = 4;
 char keys[ROWS][COLS] = {
-  {'1', '2', '3', 'A'},
-  {'4', '5', '6', 'B'},
-  {'7', '8', '9', 'C'},
-  {'*', '0', '#', 'D'}
+  {'1', '4', '7', '*'},
+  {'2', '5', '8', '0'},
+  {'3', '6', '9', '#'},
+  {'A', 'B', 'C', 'D'}
 };
 byte rowPins[ROWS] = KEYPAD_ROW_PINS;
 byte colPins[COLS] = KEYPAD_COL_PINS;

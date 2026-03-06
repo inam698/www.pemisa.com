@@ -8,6 +8,38 @@ import path from "path";
 
 const logDir = path.join(process.cwd(), "logs");
 
+const isVercel = !!process.env.VERCEL;
+
+const transports: winston.transport[] = [];
+
+// File transports only for non-Vercel environments
+if (!isVercel) {
+  transports.push(
+    new winston.transports.File({
+      filename: path.join(logDir, "error.log"),
+      level: "error",
+      maxsize: 5242880,
+      maxFiles: 5,
+    }),
+    new winston.transports.File({
+      filename: path.join(logDir, "combined.log"),
+      maxsize: 5242880,
+      maxFiles: 10,
+    })
+  );
+}
+
+// Console transport: always on Vercel, dev-only otherwise
+if (isVercel || process.env.NODE_ENV !== "production") {
+  transports.push(
+    new winston.transports.Console({
+      format: isVercel
+        ? winston.format.combine(winston.format.timestamp(), winston.format.json())
+        : winston.format.combine(winston.format.colorize(), winston.format.simple()),
+    })
+  );
+}
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "info",
   format: winston.format.combine(
@@ -17,34 +49,8 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   defaultMeta: { service: "pimisa-voucher-system" },
-  transports: [
-    // Error log file
-    new winston.transports.File({
-      filename: path.join(logDir, "error.log"),
-      level: "error",
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-    // Combined log file
-    new winston.transports.File({
-      filename: path.join(logDir, "combined.log"),
-      maxsize: 5242880,
-      maxFiles: 10,
-    }),
-  ],
+  transports,
 });
-
-// Console output in development
-if (process.env.NODE_ENV !== "production") {
-  logger.add(
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      ),
-    })
-  );
-}
 
 export default logger;
 
