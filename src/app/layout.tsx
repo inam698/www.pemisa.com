@@ -7,7 +7,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { ToastProvider } from "@/components/ui/toast";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { initializeApp } from "@/lib/init";
 
 // Initialize application (cron jobs, etc.)
