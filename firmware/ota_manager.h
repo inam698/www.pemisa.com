@@ -13,6 +13,7 @@
 
 #include <Arduino.h>
 #include <HTTPClient.h>
+#include <WiFi.h>
 #include <Update.h>
 #include <esp_ota_ops.h>
 #include "config.h"

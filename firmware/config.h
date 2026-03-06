@@ -22,7 +22,7 @@
 #define WIFI_RECONNECT_INTERVAL  5000    // Retry interval on disconnect
 
 // ─── Pimisa Cloud Server ────────────────────────────────────────
-#define SERVER_BASE_URL     "https://your-pimisa-server.com"
+#define SERVER_BASE_URL     "https://pimisa-voucher-system.vercel.app"
 #define API_TIMEOUT_MS      10000  // HTTP request timeout
 #define API_MAX_RETRIES     3      // Number of retry attempts
 #define API_RETRY_DELAY_MS  2000   // Base delay between retries
@@ -30,8 +30,8 @@
 // ─── Device Credentials (from admin dashboard) ──────────────────
 // These are generated when you register a machine in the dashboard.
 // Navigate to Admin > Machines > Register Machine to obtain them.
-#define DEVICE_ID           "DISP-XXXX-XXXX"
-#define API_KEY             "pimisa_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+#define DEVICE_ID           "DISP-LSK-001"
+#define API_KEY             "pimisa_9c9c78160941a342189fbfa95f507e619add19572343028a"
 
 // ─── Hardware Pins ──────────────────────────────────────────────
 #define FLOW_SENSOR_PIN     4      // Flow sensor signal pin (interrupt-capable)
