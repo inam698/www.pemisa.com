@@ -1,0 +1,124 @@
+version: "3.8"
+
+services:
+  # ─── PostgreSQL 16 Database ───────────────────────────────────
+  # Tuned for 1000 IoT devices: connection pooling, shared buffers,
+  # wal_level for replication readiness.
+  db:
+    image: postgres:16-alpine
+    container_name: pimisa-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pimisa_vouchers
+      POSTGRES_USER: pimisa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pimisa_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c work_mem=8MB
+        -c effective_cache_size=768MB
+        -c max_connections=200
+        -c wal_level=replica
+        -c checkpoint_completion_target=0.9
+        -c random_page_cost=1.1
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pimisa -d pimisa_vouchers"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  # ─── Redis 7 Cache ───────────────────────────────────────────
+  # Device auth cache, rate limiting, fleet status.
+  # Maxmemory 128MB with LRU eviction is plenty for 1000 devices.
+  redis:
+    image: redis:7-alpine
+    container_name: pimisa-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server
+        --maxmemory 128mb
+        --maxmemory-policy allkeys-lru
+        --save 60 1000
+        --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ─── Next.js Application ──────────────────────────────────────
+  # Standalone output mode — minimal image, no node_modules.
+  # Scale horizontally by increasing replicas.
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pimisa-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://pimisa:${POSTGRES_PASSWORD:-pimisa_secret}@db:5432/pimisa_vouchers?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-production-secret-change-me-to-random-string}
+      JWT_EXPIRES_IN: 24h
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
+      SMS_PROVIDER: africastalking
+      AT_API_KEY: ${AT_API_KEY:-sandbox}
+      AT_USERNAME: ${AT_USERNAME:-sandbox}
+      NODE_ENV: production
+      ENABLE_CRON: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  # ─── Nginx Reverse Proxy / Load Balancer ──────────────────────
+  # TLS termination, gzip, rate-limit at edge, static serving.
+  # For multi-replica, change app service to multiple containers
+  # and point upstream to app:3000 with round-robin.
+  nginx:
+    image: nginx:alpine
+    container_name: pimisa-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+volumes:
+  postgres_data:
+  redis_data:

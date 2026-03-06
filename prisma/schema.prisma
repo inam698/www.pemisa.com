@@ -1,0 +1,251 @@
+// Prisma schema for Pimisa Voucher System
+// Scalable architecture for 1000+ IoT oil dispensers
+// SQLite for local dev; switch provider to "postgresql" for production
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Note: SQLite does not support native enums.
+// Enum values are enforced at the application layer via @/types constants.
+// For production PostgreSQL, switch provider above and add enum blocks.
+
+// --- Users ---
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String   @default("STATION")
+  stationId    String?  @map("station_id")
+
+  totpSecret       String?  @map("totp_secret")
+  backupCodes      String?  @map("backup_codes")
+  twoFactorEnabled Boolean  @default(false) @map("two_factor_enabled")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  station Station? @relation(fields: [stationId], references: [id])
+
+  @@map("users")
+}
+
+// --- Stations ---
+
+model Station {
+  id          String   @id @default(cuid())
+  stationName String   @map("station_name")
+  location    String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users    User[]
+  vouchers Voucher[]
+  machines Machine[]
+
+  @@map("stations")
+}
+
+// --- Vouchers ---
+
+model Voucher {
+  id              String    @id @default(cuid())
+  name            String
+  phone           String
+  amount          Float
+  litres          Float     @default(0)
+  voucherCode     String    @unique @map("voucher_code")
+  status          String    @default("UNUSED")
+  expiryDate      DateTime  @map("expiry_date")
+  stationId       String?   @map("station_id")
+  redeemedAt      DateTime? @map("redeemed_at")
+  litresDispensed Float?    @map("litres_dispensed")
+  dispensedByDevice String? @map("dispensed_by_device")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  batchId         String?   @map("batch_id")
+
+  station Station? @relation(fields: [stationId], references: [id])
+  smsLogs SmsLog[]
+
+  @@index([phone])
+  @@index([status])
+  @@index([voucherCode, phone])
+  @@index([expiryDate])
+  @@index([batchId])
+  @@map("vouchers")
+}
+
+// --- SMS Logs ---
+
+model SmsLog {
+  id        String    @id @default(cuid())
+  phone     String
+  message   String
+  status    String    @default("PENDING")
+  provider  String?
+  sentAt    DateTime? @map("sent_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  voucherId String?   @map("voucher_id")
+
+  voucher Voucher? @relation(fields: [voucherId], references: [id])
+
+  @@index([phone])
+  @@index([voucherId])
+  @@map("sms_logs")
+}
+
+// --- Audit Logs ---
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  actor     String
+  actorRole String   @map("actor_role")
+  target    String?
+  details   String?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([actor])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// --- Machines (IoT Dispensers) ---
+
+model Machine {
+  id                String    @id @default(cuid())
+  deviceId          String    @unique @map("device_id")
+  apiKeyHash        String    @map("api_key_hash")
+  apiKeySuffix      String    @default("") @map("api_key_suffix")
+  name              String    @default("Dispenser")
+  location          String    @default("")
+  stationId         String?   @map("station_id")
+  status            String    @default("OFFLINE")
+  lastSeen          DateTime? @map("last_seen")
+  oilLevel          Float?    @map("oil_level")
+  temperature       Float?    @map("temperature")
+  lastVoucher       String?   @map("last_voucher")
+  pumpCycles        Int?      @map("pump_cycles")
+  pricePerLitre     Float     @default(45.0) @map("price_per_litre")
+  firmwareVersion   String?   @map("firmware_version")
+  targetFirmware    String?   @map("target_firmware")
+  otaUrl            String?   @map("ota_url")
+  configVersion     Int       @default(0) @map("config_version")
+  heartbeatInterval Int       @default(60) @map("heartbeat_interval")
+  ipAddress         String?   @map("ip_address")
+  rssi              Int?
+  uptimeSeconds     Int?      @map("uptime_seconds")
+  oilCapacityLitres  Float     @default(5000) @map("oil_capacity_litres")
+  oilRemainingLitres Float     @default(5000) @map("oil_remaining_litres")
+  totalDispensed    Float     @default(0) @map("total_dispensed")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  station      Station?           @relation(fields: [stationId], references: [id])
+  sales        Sale[]
+  telemetry    MachineTelemetry[]
+  transactions Transaction[]
+
+  @@index([deviceId])
+  @@index([stationId])
+  @@index([status])
+  @@index([lastSeen])
+  @@index([status, lastSeen])
+  @@map("machines")
+}
+
+// --- Machine Telemetry ---
+
+model MachineTelemetry {
+  id            String   @id @default(cuid())
+  machineId     String   @map("machine_id")
+  deviceId      String   @map("device_id")
+  rssi          Int?
+  uptimeSeconds Int?     @map("uptime_seconds")
+  freeHeap      Int?     @map("free_heap")
+  temperature   Float?
+  pumpCycles    Int?     @map("pump_cycles")
+  errorCount    Int?     @default(0) @map("error_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  machine Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@index([machineId, createdAt])
+  @@index([deviceId, createdAt])
+  @@index([createdAt])
+  @@map("machine_telemetry")
+}
+
+// --- Sales ---
+
+model Sale {
+  id          String   @id @default(cuid())
+  machineId   String   @map("machine_id")
+  deviceId    String   @map("device_id")
+  stationId   String?  @map("station_id")
+  litres      Float
+  amount      Float
+  paymentType String   @map("payment_type")
+  voucherCode String?  @map("voucher_code")
+  phone       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  machine Machine @relation(fields: [machineId], references: [id])
+
+  @@index([machineId])
+  @@index([deviceId])
+  @@index([stationId])
+  @@index([paymentType])
+  @@index([createdAt])
+  @@index([machineId, createdAt])
+  @@index([stationId, createdAt])
+  @@index([paymentType, createdAt])
+  @@map("sales")
+}
+
+// --- Transactions (unified voucher + purchase log) ---
+
+model Transaction {
+  id              String   @id @default(cuid())
+  machineId       String   @map("machine_id")
+  deviceId        String   @map("device_id")
+  type            String   // "voucher" or "purchase"
+  voucherCode     String?  @map("voucher_code")
+  oilMl           Float    @map("oil_ml")
+  amountPaid      Float?   @map("amount_paid")
+  oilRemainingAfter Float? @map("oil_remaining_after")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  machine Machine @relation(fields: [machineId], references: [id])
+
+  @@index([machineId])
+  @@index([deviceId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([machineId, createdAt])
+  @@map("transactions")
+}
+
+// --- OTA Firmware Releases ---
+
+model FirmwareRelease {
+  id           String   @id @default(cuid())
+  version      String   @unique
+  url          String
+  checksum     String
+  releaseNotes String?  @map("release_notes")
+  isStable     Boolean  @default(false) @map("is_stable")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("firmware_releases")
+}
