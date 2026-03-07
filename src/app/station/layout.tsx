@@ -37,8 +37,8 @@ export default function StationLayout({
     );
   }
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push("/login");
   };
 

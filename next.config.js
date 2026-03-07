@@ -6,9 +6,9 @@ const nextConfig = {
   // NOTE: Enable "standalone" output for Docker production deployment
   // output: "standalone",
 
-  // Skip TypeScript and ESLint errors during build (Vercel)
-  typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
+  // TypeScript and ESLint checking during builds
+  typescript: { ignoreBuildErrors: false },
+  eslint: { ignoreDuringBuilds: false },
 
   // Server external packages (Node.js native modules that shouldn't be bundled)
   serverExternalPackages: [

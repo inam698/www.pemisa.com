@@ -5,18 +5,43 @@
 
 import crypto from "crypto";
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "pimisa-default-key-change-in-prod";
+function getEncryptionKeyFromEnv(): string {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error(
+      "CRITICAL: ENCRYPTION_KEY environment variable is not set. " +
+      "The application cannot start without a secure encryption key. " +
+      "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+    );
+  }
+  if (key.length < 16) {
+    throw new Error(
+      "CRITICAL: ENCRYPTION_KEY must be at least 16 characters long for security."
+    );
+  }
+  return key;
+}
+
+let _encryptionKey: string | null = null;
+function getEncryptionKeySafe(): string {
+  if (!_encryptionKey) {
+    _encryptionKey = getEncryptionKeyFromEnv();
+  }
+  return _encryptionKey;
+}
+
 const ALGORITHM = "aes-256-cbc";
 
 /**
  * Derive a proper 32-byte key from the encryption key
  */
 function getEncryptionKey(): Buffer {
-  if (ENCRYPTION_KEY.length === 32) {
-    return Buffer.from(ENCRYPTION_KEY);
+  const key = getEncryptionKeySafe();
+  if (key.length === 32) {
+    return Buffer.from(key);
   }
   // Hash the key to get 32 bytes
-  return crypto.createHash("sha256").update(ENCRYPTION_KEY).digest();
+  return crypto.createHash("sha256").update(key).digest();
 }
 
 /**

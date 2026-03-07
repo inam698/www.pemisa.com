@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Pimisa Voucher System — Firestore Security Rules
+// Deploy via: firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Users Collection ────────────────────────────────────────
+    // Users can read their own profile.
+    // Only authenticated users can read other profiles (for admin panels).
+    // Only server-side (Admin SDK) should write — it bypasses rules.
+    match /users/{userId} {
+      // Any authenticated user can read their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Admins can read all user profiles
+      allow read: if request.auth != null
+        && request.auth.token.role == "ADMIN";
+
+      // No client-side writes — all user management goes through API
+      // which uses Firebase Admin SDK (bypasses these rules)
+      allow write: if false;
+    }
+
+    // ─── Audit Logs ──────────────────────────────────────────────
+    match /auditLogs/{logId} {
+      // Only admins can read audit logs
+      allow read: if request.auth != null
+        && request.auth.token.role == "ADMIN";
+
+      // No client-side writes
+      allow write: if false;
+    }
+
+    // ─── Default: Deny Everything ────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

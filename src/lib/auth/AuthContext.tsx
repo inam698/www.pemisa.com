@@ -1,13 +1,25 @@
 /**
  * Authentication Context Provider
- * Manages user session state across the application.
- * Stores JWT token and user info in localStorage.
- * Handles 2FA login flow.
+ * Production-grade Firebase Authentication integration.
+ *
+ * - Uses Firebase Auth for login/logout
+ * - Loads user profile (role, station) from Firestore
+ * - Stores ID token for API requests (refreshed automatically)
+ * - All role information comes from Firestore, NOT localStorage
  */
 
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  onIdTokenChanged,
+  type User as FirebaseUser,
+} from "firebase/auth";
+import { auth as firebaseAuth } from "@/lib/firebase/config";
+import { getUserProfile, type UserProfile } from "@/lib/firebase/firestore";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -16,24 +28,18 @@ interface User {
   name: string;
   email: string;
   role: string;
-  stationId?: string | null;
-  stationName?: string | null;
-  twoFactorEnabled?: boolean;
-}
-
-interface TwoFactorChallenge {
-  twoFaToken: string;
-  userId: string;
+  stationId: string | null;
+  stationName: string | null;
 }
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<TwoFactorChallenge | null>;
-  verifyTwoFactor: (twoFaToken: string, code: string, useBackupCode?: boolean) => Promise<void>;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
+  refreshProfile: () => Promise<void>;
   isAdmin: boolean;
   isStation: boolean;
 }
@@ -48,106 +54,157 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const profileCache = useRef<Map<string, UserProfile>>(new Map());
 
-  // Restore session from localStorage on mount
+  /**
+   * Load user profile from Firestore and map to app User.
+   * Caches profiles to avoid redundant reads on token refresh.
+   */
+  const loadProfile = useCallback(async (fbUser: FirebaseUser): Promise<User | null> => {
+    // Check cache first
+    const cached = profileCache.current.get(fbUser.uid);
+    if (cached) {
+      return profileToUser(cached);
+    }
+
+    const profile = await getUserProfile(fbUser.uid);
+
+    if (!profile) {
+      // User authenticated in Firebase but has no Firestore profile.
+      // This happens if the admin hasn't created their profile yet.
+      console.warn(`No Firestore profile for user ${fbUser.uid}. Access denied.`);
+      return null;
+    }
+
+    if (profile.disabled) {
+      console.warn(`User ${fbUser.uid} is disabled.`);
+      return null;
+    }
+
+    profileCache.current.set(fbUser.uid, profile);
+    return profileToUser(profile);
+  }, []);
+
+  /**
+   * Listen for auth state changes AND token refreshes.
+   * onIdTokenChanged fires on:
+   *   - Initial sign-in
+   *   - Token refresh (every ~55 minutes)
+   *   - Sign-out
+   */
   useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem("pimisa_token");
-      const storedUser = localStorage.getItem("pimisa_user");
+    const unsubscribe = onIdTokenChanged(firebaseAuth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          const idToken = await fbUser.getIdToken();
+          const appUser = await loadProfile(fbUser);
 
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+          if (appUser) {
+            setToken(idToken);
+            setUser(appUser);
+            // Store token for apiClient to pick up
+            localStorage.setItem("pimisa_token", idToken);
+          } else {
+            // Profile not found or disabled — force sign out
+            await signOut(firebaseAuth);
+            clearState();
+          }
+        } catch (err) {
+          console.error("Failed to load user profile:", err);
+          await signOut(firebaseAuth);
+          clearState();
+        }
+      } else {
+        clearState();
       }
-    } catch {
-      // Invalid stored data, clear it
-      localStorage.removeItem("pimisa_token");
-      localStorage.removeItem("pimisa_user");
-    }
-    setIsLoading(false);
-  }, []);
-
-  // Login function - calls the auth API
-  // Returns a TwoFactorChallenge if 2FA is required, otherwise null (login complete)
-  const login = useCallback(async (email: string, password: string): Promise<TwoFactorChallenge | null> => {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      setIsLoading(false);
     });
 
-    const data = await response.json();
+    return () => unsubscribe();
+  }, [loadProfile]);
 
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || "Login failed");
-    }
+  /**
+   * Proactively refresh the ID token before it expires.
+   * Firebase tokens expire after 1 hour. We refresh at 50 minutes.
+   */
+  useEffect(() => {
+    if (!user) return;
 
-    // 2FA required — return the challenge for the login page to handle
-    if (data.data.requiresTwoFactor) {
-      return {
-        twoFaToken: data.data.twoFaToken,
-        userId: data.data.userId,
-      };
-    }
+    const REFRESH_INTERVAL = 50 * 60 * 1000; // 50 minutes
+    const interval = setInterval(async () => {
+      const currentUser = firebaseAuth.currentUser;
+      if (currentUser) {
+        try {
+          const newToken = await currentUser.getIdToken(true);
+          setToken(newToken);
+          localStorage.setItem("pimisa_token", newToken);
+        } catch {
+          // Token refresh failed — session may be revoked
+          await signOut(firebaseAuth);
+          clearState();
+        }
+      }
+    }, REFRESH_INTERVAL);
 
-    // No 2FA — complete login
-    const { token: newToken, user: newUser } = data.data;
-    localStorage.setItem("pimisa_token", newToken);
-    localStorage.setItem("pimisa_user", JSON.stringify(newUser));
-    setToken(newToken);
-    setUser(newUser);
-    return null;
-  }, []);
+    return () => clearInterval(interval);
+  }, [user]);
 
-  // Verify 2FA code after login
-  const verifyTwoFactor = useCallback(async (twoFaToken: string, code: string, useBackupCode = false) => {
-    const response = await fetch("/api/auth/2fa/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ twoFaToken, token: code, useBackupCode }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || "2FA verification failed");
-    }
-
-    const { token: newToken, user: newUser } = data.data;
-    localStorage.setItem("pimisa_token", newToken);
-    localStorage.setItem("pimisa_user", JSON.stringify(newUser));
-    setToken(newToken);
-    setUser(newUser);
-  }, []);
-
-  // Logout function - clears session
-  const logout = useCallback(() => {
-    localStorage.removeItem("pimisa_token");
-    localStorage.removeItem("pimisa_user");
+  function clearState() {
     setToken(null);
     setUser(null);
+    profileCache.current.clear();
+    localStorage.removeItem("pimisa_token");
+  }
+
+  // ─── Actions ────────────────────────────────────────────────
+
+  const login = useCallback(async (email: string, password: string): Promise<void> => {
+    // Firebase handles all authentication — onIdTokenChanged will fire
+    await signInWithEmailAndPassword(firebaseAuth, email, password);
   }, []);
 
-  const updateUser = useCallback(
-    (updates: Partial<User>) => {
-      setUser((current) => {
-        if (!current) return current;
-        const updated = { ...current, ...updates };
-        localStorage.setItem("pimisa_user", JSON.stringify(updated));
-        return updated;
-      });
-    },
-    []
-  );
+  const logout = useCallback(async () => {
+    await signOut(firebaseAuth);
+    clearState();
+  }, []);
+
+  const updateUser = useCallback((updates: Partial<User>) => {
+    setUser((current) => {
+      if (!current) return current;
+      return { ...current, ...updates };
+    });
+    // Also invalidate profile cache so next read is fresh
+    if (user?.id) {
+      profileCache.current.delete(user.id);
+    }
+  }, [user?.id]);
+
+  /**
+   * Force-refresh the user profile from Firestore.
+   * Use after admin updates a user's role or station.
+   */
+  const refreshProfile = useCallback(async () => {
+    const currentUser = firebaseAuth.currentUser;
+    if (!currentUser) return;
+
+    // Clear cache to force re-read
+    profileCache.current.delete(currentUser.uid);
+    const appUser = await loadProfile(currentUser);
+    if (appUser) {
+      setUser(appUser);
+    }
+  }, [loadProfile]);
+
+  // ─── Value ──────────────────────────────────────────────────
 
   const value: AuthContextType = {
     user,
     token,
     isLoading,
     login,
-    verifyTwoFactor,
     logout,
     updateUser,
+    refreshProfile,
     isAdmin: user?.role === "ADMIN",
     isStation: user?.role === "STATION",
   };
@@ -163,4 +220,17 @@ export function useAuth() {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
+}
+
+// ─── Helpers ────────────────────────────────────────────────────
+
+function profileToUser(profile: UserProfile): User {
+  return {
+    id: profile.uid,
+    name: profile.name,
+    email: profile.email,
+    role: profile.role,
+    stationId: profile.stationId,
+    stationName: profile.stationName,
+  };
 }

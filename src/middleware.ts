@@ -1,31 +1,90 @@
 /**
  * Next.js Middleware
- * Handles route-level redirects (not API auth - that's handled per-route).
- * Provides login page redirect for unauthenticated access to protected routes.
+ * Handles:
+ * - Request body size limits (DoS protection)
+ * - CSRF protection for state-changing API requests
+ * - Route-level redirects for unauthenticated users
  */
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// Max request body size: 10MB (prevents memory exhaustion DoS)
+const MAX_BODY_SIZE = 10 * 1024 * 1024;
+
+// Routes exempt from CSRF checks (public or device-to-server)
+const CSRF_EXEMPT_PATHS = [
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/device/",
+  "/api/voucher/verify",
+  "/api/voucher/redeem",
+  "/api/machines/ota",
+  "/api/health",
+];
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const response = NextResponse.next();
 
-  // Public routes that don't require authentication
-  const publicPaths = ["/login", "/api/auth/login"];
+  // ─── Request Body Size Limit ────────────────────────────────
+  const contentLength = request.headers.get("content-length");
+  if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE) {
+    return NextResponse.json(
+      { success: false, error: "Request body too large. Maximum size is 10MB." },
+      { status: 413 }
+    );
+  }
+
+  // ─── CSRF Protection ───────────────────────────────────────
+  // Enforce Origin/Referer check on state-changing methods for browser requests
+  const method = request.method;
+  const isStateChanging = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  const isApiRoute = pathname.startsWith("/api/");
+
+  if (isStateChanging && isApiRoute) {
+    const isExempt = CSRF_EXEMPT_PATHS.some((p) => pathname.startsWith(p));
+    const hasApiKey = request.headers.has("x-api-key");
+
+    // Skip CSRF check for device requests (they use API keys, not cookies)
+    if (!isExempt && !hasApiKey) {
+      const origin = request.headers.get("origin");
+      const host = request.headers.get("host");
+
+      if (origin && host) {
+        try {
+          const originHost = new URL(origin).host;
+          if (originHost !== host) {
+            return NextResponse.json(
+              { success: false, error: "CSRF validation failed" },
+              { status: 403 }
+            );
+          }
+        } catch {
+          return NextResponse.json(
+            { success: false, error: "Invalid origin header" },
+            { status: 403 }
+          );
+        }
+      }
+    }
+  }
+
+  // ─── Public Routes ─────────────────────────────────────────
+  const publicPaths = ["/login", "/api/auth/login", "/api/health"];
   const isPublicPath = publicPaths.some((path) => pathname.startsWith(path));
 
   if (isPublicPath) {
-    return NextResponse.next();
+    return response;
   }
 
   // API routes handle their own auth via middleware wrappers
   if (pathname.startsWith("/api/")) {
-    return NextResponse.next();
+    return response;
   }
 
-  // For page routes, check for token cookie or let client-side handle redirect
-  // (Client-side auth context handles the redirect for SPA navigation)
-  return NextResponse.next();
+  // For page routes, let client-side auth context handle redirect
+  return response;
 }
 
 export const config = {

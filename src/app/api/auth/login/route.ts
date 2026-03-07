@@ -14,7 +14,13 @@ import { logSecurityEvent, logApiError } from "@/lib/logger";
 import type { UserRole } from "@/types";
 import jwt from "jsonwebtoken";
 
-const TWO_FA_SECRET = process.env.JWT_SECRET || "fallback-secret-change-me";
+function getTwoFaSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret === "fallback-secret-change-me") {
+    throw new Error("CRITICAL: JWT_SECRET environment variable is not set.");
+  }
+  return secret;
+}
 
 const loginHandler = async (request: Request): Promise<Response> => {
   try {
@@ -65,7 +71,7 @@ const loginHandler = async (request: Request): Promise<Response> => {
     if (user.twoFactorEnabled && user.totpSecret) {
       const twoFaToken = jwt.sign(
         { userId: user.id, purpose: "2fa-verify" },
-        TWO_FA_SECRET,
+        getTwoFaSecret(),
         { expiresIn: "5m" }
       );
 
@@ -85,6 +91,7 @@ const loginHandler = async (request: Request): Promise<Response> => {
       email: user.email,
       role: user.role as UserRole,
       stationId: user.stationId,
+      organizationId: user.organizationId,
     });
 
     // Return token and user info
@@ -99,6 +106,7 @@ const loginHandler = async (request: Request): Promise<Response> => {
           role: user.role,
           stationId: user.stationId,
           stationName: user.station?.stationName || null,
+          organizationId: user.organizationId,
           twoFactorEnabled: user.twoFactorEnabled,
         },
       },

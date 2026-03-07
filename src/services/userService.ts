@@ -1,11 +1,13 @@
 /**
  * User Service
  * CRUD operations for managing admin and station users.
+ * Uses Firebase Admin SDK for auth + Firestore for profiles.
  */
 
-import prisma from "@/lib/db/prisma";
-import { hashPassword } from "@/lib/auth";
+import { getAdminAuth, getAdminFirestore } from "@/lib/firebase/admin";
 import type { UserRole } from "@/types";
+
+const USERS_COLLECTION = "users";
 
 export async function getUsers(params: {
   page?: number;
@@ -15,39 +17,44 @@ export async function getUsers(params: {
 }) {
   const page = params.page || 1;
   const pageSize = params.pageSize || 50;
+  const db = getAdminFirestore();
 
-  const where: Record<string, unknown> = {};
+  let q: FirebaseFirestore.Query = db.collection(USERS_COLLECTION).orderBy("createdAt", "desc");
+
   if (params.role && params.role !== "ALL") {
-    where.role = params.role;
-  }
-  if (params.search) {
-    where.OR = [
-      { name: { contains: params.search } },
-      { email: { contains: params.search } },
-    ];
+    q = q.where("role", "==", params.role);
   }
 
-  const [users, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      include: { station: true },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.user.count({ where }),
-  ]);
+  const allDocs = await q.get();
+  let users = allDocs.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      name: data.name || "",
+      email: data.email || "",
+      role: data.role || "STATION",
+      stationId: data.stationId || null,
+      stationName: data.stationName || null,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+    };
+  });
+
+  // Client-side search filtering
+  if (params.search) {
+    const term = params.search.toLowerCase();
+    users = users.filter(
+      (u) =>
+        u.name.toLowerCase().includes(term) ||
+        u.email.toLowerCase().includes(term)
+    );
+  }
+
+  const total = users.length;
+  const start = (page - 1) * pageSize;
+  const paged = users.slice(start, start + pageSize);
 
   return {
-    data: users.map((u: any) => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      stationId: u.stationId,
-      stationName: u.station?.stationName || null,
-      createdAt: u.createdAt.toISOString(),
-    })),
+    data: paged,
     total,
     page,
     pageSize,
@@ -61,90 +68,123 @@ export async function createUser(data: {
   password: string;
   role: UserRole;
   stationId?: string | null;
+  stationName?: string | null;
 }) {
-  const existing = await prisma.user.findUnique({ where: { email: data.email } });
-  if (existing) {
-    throw new Error("A user with this email already exists");
-  }
+  const auth = getAdminAuth();
+  const db = getAdminFirestore();
 
-  const passwordHash = await hashPassword(data.password);
-
-  const user = await prisma.user.create({
-    data: {
-      name: data.name,
-      email: data.email,
-      passwordHash,
-      role: data.role,
-      stationId: data.stationId || null,
-    },
-    include: { station: true },
+  // Create Firebase Auth user
+  const firebaseUser = await auth.createUser({
+    email: data.email,
+    password: data.password,
+    displayName: data.name,
+    emailVerified: true,
   });
 
+  // Create Firestore profile
+  await db.collection(USERS_COLLECTION).doc(firebaseUser.uid).set({
+    name: data.name,
+    email: data.email,
+    role: data.role,
+    stationId: data.stationId || null,
+    stationName: data.stationName || null,
+    disabled: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  // Set custom claims for role
+  await auth.setCustomUserClaims(firebaseUser.uid, { role: data.role });
+
   return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    stationId: user.stationId,
-    stationName: (user as any).station?.stationName || null,
+    id: firebaseUser.uid,
+    name: data.name,
+    email: data.email,
+    role: data.role,
+    stationId: data.stationId || null,
+    stationName: data.stationName || null,
   };
 }
 
 export async function updateUser(
   id: string,
-  data: { name?: string; email?: string; role?: UserRole; stationId?: string | null }
+  data: { name?: string; email?: string; role?: UserRole; stationId?: string | null; stationName?: string | null }
 ) {
+  const auth = getAdminAuth();
+  const db = getAdminFirestore();
+
+  // Check email uniqueness if changing email
   if (data.email) {
-    const existing = await prisma.user.findFirst({
-      where: { email: data.email, NOT: { id } },
-    });
-    if (existing) throw new Error("Another user with this email already exists");
+    try {
+      const existing = await auth.getUserByEmail(data.email);
+      if (existing.uid !== id) {
+        throw new Error("Another user with this email already exists");
+      }
+    } catch (err: any) {
+      if (err.code !== "auth/user-not-found") {
+        if (err.message?.includes("Another user")) throw err;
+      }
+    }
   }
 
-  const user = await prisma.user.update({
-    where: { id },
-    data: {
-      ...(data.name && { name: data.name }),
-      ...(data.email && { email: data.email }),
-      ...(data.role && { role: data.role }),
-      ...(data.stationId !== undefined && { stationId: data.stationId || null }),
-    },
-    include: { station: true },
-  });
+  // Update Firebase Auth
+  const authUpdate: Record<string, string> = {};
+  if (data.name) authUpdate.displayName = data.name;
+  if (data.email) authUpdate.email = data.email;
+  if (Object.keys(authUpdate).length > 0) {
+    await auth.updateUser(id, authUpdate);
+  }
+
+  // Update Firestore profile
+  const profileUpdate: Record<string, unknown> = { updatedAt: new Date() };
+  if (data.name) profileUpdate.name = data.name;
+  if (data.email) profileUpdate.email = data.email;
+  if (data.role) profileUpdate.role = data.role;
+  if (data.stationId !== undefined) profileUpdate.stationId = data.stationId || null;
+  if (data.stationName !== undefined) profileUpdate.stationName = data.stationName || null;
+
+  await db.collection(USERS_COLLECTION).doc(id).update(profileUpdate);
+
+  // Update custom claims if role changed
+  if (data.role) {
+    await auth.setCustomUserClaims(id, { role: data.role });
+  }
+
+  const doc = await db.collection(USERS_COLLECTION).doc(id).get();
+  const profile = doc.data()!;
 
   return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    stationId: user.stationId,
-    stationName: (user as any).station?.stationName || null,
+    id,
+    name: profile.name,
+    email: profile.email,
+    role: profile.role,
+    stationId: profile.stationId || null,
+    stationName: profile.stationName || null,
   };
 }
 
 export async function deleteUser(id: string) {
-  await prisma.user.delete({ where: { id } });
+  const auth = getAdminAuth();
+  const db = getAdminFirestore();
+
+  // Delete from Firebase Auth
+  await auth.deleteUser(id);
+
+  // Delete from Firestore
+  await db.collection(USERS_COLLECTION).doc(id).delete();
 }
 
 export async function resetUserPassword(id: string, newPassword: string) {
-  const passwordHash = await hashPassword(newPassword);
-  await prisma.user.update({
-    where: { id },
-    data: { passwordHash },
-  });
+  const auth = getAdminAuth();
+  await auth.updateUser(id, { password: newPassword });
 }
 
 export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
-  const { comparePassword } = await import("@/lib/auth");
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new Error("User not found");
-
-  const valid = await comparePassword(currentPassword, user.passwordHash);
-  if (!valid) throw new Error("Current password is incorrect");
-
-  const passwordHash = await hashPassword(newPassword);
-  await prisma.user.update({
-    where: { id: userId },
-    data: { passwordHash },
-  });
+  // With Firebase, password changes should be done client-side using
+  // reauthenticateWithCredential + updatePassword.
+  // Server-side, we can only force-reset (no current password check).
+  // For security, this should be called from a client that has already
+  // reauthenticated the user.
+  const auth = getAdminAuth();
+  await auth.updateUser(userId, { password: newPassword });
 }

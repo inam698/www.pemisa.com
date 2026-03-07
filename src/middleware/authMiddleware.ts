@@ -1,11 +1,14 @@
 /**
  * Authentication Middleware
- * Validates JWT tokens and enforces role-based access control.
+ * Verifies Firebase ID tokens and enforces role-based access control.
  * Used by API routes to protect endpoints.
+ *
+ * Uses Firebase Admin SDK for server-side token verification.
+ * Loads user role from Firestore (server-side) to prevent spoofing.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken, extractTokenFromHeader } from "@/lib/auth";
+import { verifyFirebaseToken, getAdminFirestore } from "@/lib/firebase/admin";
 import { JwtPayload, UserRole } from "@/types";
 
 // ─── Response Helpers ───────────────────────────────────────────
@@ -27,24 +30,56 @@ function forbiddenResponse(message: string = "Forbidden") {
 // ─── Token Extraction & Verification ────────────────────────────
 
 /**
- * Extracts and verifies the JWT from the request.
- * Checks Authorization header first, then cookies.
+ * Extracts the Bearer token from the Authorization header.
  */
-export function authenticateRequest(
-  request: NextRequest
-): JwtPayload | null {
-  // Try Authorization header
+function extractBearerToken(request: NextRequest): string | null {
   const authHeader = request.headers.get("authorization");
-  let token = extractTokenFromHeader(authHeader);
-
-  // Fallback to cookie
-  if (!token) {
-    token = request.cookies.get("token")?.value || null;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
   }
+  return authHeader.substring(7);
+}
 
-  if (!token) return null;
+/**
+ * Verifies the Firebase ID token from the request and loads user profile.
+ * Returns a JwtPayload-compatible object or null if invalid.
+ */
+export async function authenticateRequest(
+  request: NextRequest
+): Promise<JwtPayload | null> {
+  const idToken = extractBearerToken(request);
+  if (!idToken) return null;
 
-  return verifyToken(token);
+  // Verify token with Firebase Admin (checks signature, expiry, revocation)
+  const decoded = await verifyFirebaseToken(idToken);
+  if (!decoded) return null;
+
+  // Load user profile from Firestore for authoritative role
+  try {
+    const db = getAdminFirestore();
+    const userDoc = await db.collection("users").doc(decoded.uid).get();
+
+    if (!userDoc.exists) {
+      // User authenticated in Firebase but has no profile — deny access
+      return null;
+    }
+
+    const profile = userDoc.data()!;
+
+    if (profile.disabled) {
+      return null;
+    }
+
+    return {
+      userId: decoded.uid,
+      email: decoded.email || profile.email || "",
+      role: profile.role as UserRole,
+      stationId: profile.stationId || null,
+    };
+  } catch (err) {
+    console.error("Error loading user profile in middleware:", err);
+    return null;
+  }
 }
 
 // ─── Middleware Wrapper Functions ────────────────────────────────
@@ -60,7 +95,7 @@ export function withAuth(
   ) => Promise<NextResponse>
 ) {
   return async (request: NextRequest) => {
-    const user = authenticateRequest(request);
+    const user = await authenticateRequest(request);
 
     if (!user) {
       return unauthorizedResponse("Authentication required. Please log in.");
@@ -81,14 +116,39 @@ export function withAdmin(
   ) => Promise<NextResponse>
 ) {
   return async (request: NextRequest) => {
-    const user = authenticateRequest(request);
+    const user = await authenticateRequest(request);
 
     if (!user) {
       return unauthorizedResponse("Authentication required. Please log in.");
     }
 
-    if (user.role !== UserRole.ADMIN) {
+    if (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {
       return forbiddenResponse("Admin access required.");
+    }
+
+    return handler(request, user);
+  };
+}
+
+/**
+ * Wraps an API handler with super admin role requirement.
+ * Returns 403 if user is not a super admin.
+ */
+export function withSuperAdmin(
+  handler: (
+    request: NextRequest,
+    user: JwtPayload
+  ) => Promise<NextResponse>
+) {
+  return async (request: NextRequest) => {
+    const user = await authenticateRequest(request);
+
+    if (!user) {
+      return unauthorizedResponse("Authentication required. Please log in.");
+    }
+
+    if (user.role !== UserRole.SUPER_ADMIN) {
+      return forbiddenResponse("Super admin access required.");
     }
 
     return handler(request, user);
@@ -106,13 +166,13 @@ export function withStation(
   ) => Promise<NextResponse>
 ) {
   return async (request: NextRequest) => {
-    const user = authenticateRequest(request);
+    const user = await authenticateRequest(request);
 
     if (!user) {
       return unauthorizedResponse("Authentication required. Please log in.");
     }
 
-    if (user.role !== UserRole.STATION && user.role !== UserRole.ADMIN) {
+    if (user.role !== UserRole.STATION && user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {
       return forbiddenResponse("Station access required.");
     }
 

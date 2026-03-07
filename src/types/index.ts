@@ -6,10 +6,18 @@
 // ─── Enum-like constants (SQLite doesn't support native enums) ──
 
 export const UserRole = {
+  SUPER_ADMIN: "SUPER_ADMIN",
   ADMIN: "ADMIN",
   STATION: "STATION",
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+export const OrganizationPlan = {
+  STARTER: "STARTER",
+  PROFESSIONAL: "PROFESSIONAL",
+  ENTERPRISE: "ENTERPRISE",
+} as const;
+export type OrganizationPlan = (typeof OrganizationPlan)[keyof typeof OrganizationPlan];
 
 export const VoucherStatus = {
   UNUSED: "UNUSED",
@@ -32,6 +40,7 @@ export interface JwtPayload {
   email: string;
   role: UserRole;
   stationId?: string | null;
+  organizationId?: string | null;
 }
 
 export interface LoginRequest {

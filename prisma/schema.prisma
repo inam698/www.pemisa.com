@@ -1,6 +1,6 @@
 // Prisma schema for Pimisa Voucher System
-// Scalable architecture for 1000+ IoT oil dispensers
-// SQLite for local dev; switch provider to "postgresql" for production
+// Multi-tenant SaaS architecture for 1000+ IoT oil dispensers
+// Each Organization gets fully isolated data
 
 generator client {
   provider = "prisma-client-js"
@@ -11,9 +11,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Note: SQLite does not support native enums.
-// Enum values are enforced at the application layer via @/types constants.
-// For production PostgreSQL, switch provider above and add enum blocks.
+// --- Organizations (Multi-Tenancy) ---
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique                // subdomain: client1.pimisa.com
+  logo      String?
+  plan      String   @default("STARTER")    // STARTER, PROFESSIONAL, ENTERPRISE
+  isActive  Boolean  @default(true) @map("is_active")
+  maxStations   Int  @default(5)  @map("max_stations")
+  maxMachines   Int  @default(20) @map("max_machines")
+  maxUsersPerOrg Int @default(10) @map("max_users_per_org")
+  contactEmail  String?  @map("contact_email")
+  contactPhone  String?  @map("contact_phone")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users     User[]
+  stations  Station[]
+  vouchers  Voucher[]
+  machines  Machine[]
+  auditLogs AuditLog[]
+
+  @@map("organizations")
+}
 
 // --- Users ---
 
@@ -24,6 +46,7 @@ model User {
   passwordHash String   @map("password_hash")
   role         String   @default("STATION")
   stationId    String?  @map("station_id")
+  organizationId String? @map("organization_id")
 
   totpSecret       String?  @map("totp_secret")
   backupCodes      String?  @map("backup_codes")
@@ -32,24 +55,29 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  station Station? @relation(fields: [stationId], references: [id])
+  station      Station?      @relation(fields: [stationId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId])
   @@map("users")
 }
 
 // --- Stations ---
 
 model Station {
-  id          String   @id @default(cuid())
-  stationName String   @map("station_name")
-  location    String
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  stationName    String   @map("station_name")
+  location       String
+  organizationId String?  @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  users    User[]
-  vouchers Voucher[]
-  machines Machine[]
+  users        User[]
+  vouchers     Voucher[]
+  machines     Machine[]
+  organization Organization? @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId])
   @@map("stations")
 }
 
@@ -65,6 +93,7 @@ model Voucher {
   status          String    @default("UNUSED")
   expiryDate      DateTime  @map("expiry_date")
   stationId       String?   @map("station_id")
+  organizationId  String?   @map("organization_id")
   redeemedAt      DateTime? @map("redeemed_at")
   litresDispensed Float?    @map("litres_dispensed")
   dispensedByDevice String? @map("dispensed_by_device")
@@ -72,14 +101,16 @@ model Voucher {
   updatedAt       DateTime  @updatedAt @map("updated_at")
   batchId         String?   @map("batch_id")
 
-  station Station? @relation(fields: [stationId], references: [id])
-  smsLogs SmsLog[]
+  station      Station?      @relation(fields: [stationId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  smsLogs      SmsLog[]
 
   @@index([phone])
   @@index([status])
   @@index([voucherCode, phone])
   @@index([expiryDate])
   @@index([batchId])
+  @@index([organizationId])
   @@map("vouchers")
 }
 
@@ -105,18 +136,22 @@ model SmsLog {
 // --- Audit Logs ---
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  action    String
-  actor     String
-  actorRole String   @map("actor_role")
-  target    String?
-  details   String?
-  ipAddress String?  @map("ip_address")
-  createdAt DateTime @default(now()) @map("created_at")
+  id             String   @id @default(cuid())
+  action         String
+  actor          String
+  actorRole      String   @map("actor_role")
+  target         String?
+  details        String?
+  ipAddress      String?  @map("ip_address")
+  organizationId String?  @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
 
   @@index([actor])
   @@index([action])
   @@index([createdAt])
+  @@index([organizationId])
   @@map("audit_logs")
 }
 
@@ -130,6 +165,7 @@ model Machine {
   name              String    @default("Dispenser")
   location          String    @default("")
   stationId         String?   @map("station_id")
+  organizationId    String?   @map("organization_id")
   status            String    @default("OFFLINE")
   lastSeen          DateTime? @map("last_seen")
   oilLevel          Float?    @map("oil_level")
@@ -152,12 +188,14 @@ model Machine {
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   station      Station?           @relation(fields: [stationId], references: [id])
+  organization Organization?      @relation(fields: [organizationId], references: [id])
   sales        Sale[]
   telemetry    MachineTelemetry[]
   transactions Transaction[]
 
   @@index([deviceId])
   @@index([stationId])
+  @@index([organizationId])
   @@index([status])
   @@index([lastSeen])
   @@index([status, lastSeen])
