@@ -41,7 +41,7 @@ function getRedis(): any {
   try {
     redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
-      retryStrategy(times) {
+      retryStrategy(times: number) {
         if (times > 10) return null; // Stop retrying after 10 attempts
         return Math.min(times * 200, 5000);
       },
@@ -55,7 +55,7 @@ function getRedis(): any {
       console.log("[Redis] Connected");
     });
 
-    redis.on("error", (err) => {
+    redis.on("error", (err: Error) => {
       isRedisAvailable = false;
       console.error("[Redis] Error:", err.message);
     });

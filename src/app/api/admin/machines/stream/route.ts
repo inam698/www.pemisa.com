@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const payload = verifyToken(token);
+  const payload = await verifyToken(token);
   if (!payload || payload.role !== "ADMIN") {
     return new Response("Forbidden", { status: 403 });
   }

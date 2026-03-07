@@ -260,7 +260,7 @@ export default function SalesPage() {
                     />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip
-                      formatter={(value: number | undefined) => value !== undefined ? `K${value.toLocaleString()}` : ''}
+                      formatter={(value: string | number | (string | number)[]) => typeof value === 'number' ? `K${value.toLocaleString()}` : String(value)}
                       labelFormatter={(label) => `Date: ${label}`}
                     />
                     <Legend />

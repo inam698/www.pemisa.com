@@ -47,7 +47,7 @@ async function verifyHandler(request: NextRequest) {
     }
 
     // ── Dashboard Auth Path (JWT) ───────────────────────────────
-    const user = authenticateRequest(request);
+    const user = await authenticateRequest(request);
     if (!user) {
       return NextResponse.json(
         { success: false, error: "Authentication required" },

@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get("Authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
     if (!payload) return NextResponse.json({ success: false, error: "Invalid token" }, { status: 401 });
 
     const body = await request.json();

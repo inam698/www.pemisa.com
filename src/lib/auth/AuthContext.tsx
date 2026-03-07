@@ -30,6 +30,7 @@ interface User {
   role: string;
   stationId: string | null;
   stationName: string | null;
+  twoFactorEnabled?: boolean;
 }
 
 interface AuthContextType {

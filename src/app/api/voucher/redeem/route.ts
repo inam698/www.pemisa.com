@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/middleware/authMiddleware";
 import { authenticateDevice } from "@/middleware/deviceAuthMiddleware";
 import { withRateLimit } from "@/middleware/rateLimiter";
+import type { JwtPayload } from "@/types";
 import { voucherRedeemSchema, deviceVoucherRedeemSchema } from "@/lib/validators";
 import { redeemVoucher, redeemVoucherFromDevice } from "@/services/voucherService";
 import { recordSale } from "@/services/salesService";
@@ -67,7 +68,7 @@ async function redeemHandler(request: NextRequest) {
     }
 
     // ── Dashboard Auth Path (JWT) ───────────────────────────────
-    const user = authenticateRequest(request);
+    const user: JwtPayload | null = await authenticateRequest(request);
     if (!user) {
       return NextResponse.json(
         { success: false, error: "Authentication required" },
