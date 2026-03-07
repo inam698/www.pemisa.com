@@ -19,10 +19,11 @@ function getAdminApp(): App {
     return existing[0];
   }
 
-  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID?.trim();
+  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL?.trim();
   // Private key comes with escaped newlines from env — unescape them
-  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  // Also trim whitespace and remove stray \r that Vercel env vars may include
+  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n").replace(/\r/g, "").trim();
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(

@@ -36,11 +36,10 @@ export async function apiClient<T>(
   const data = await response.json();
 
   if (!response.ok) {
-    // Handle 401 - redirect to login
+    // Handle 401 - clear stale token so AuthContext can handle the redirect
     if (response.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("pimisa_token");
       localStorage.removeItem("pimisa_user");
-      window.location.href = "/login";
     }
     throw new Error(data.error || `Request failed with status ${response.status}`);
   }
