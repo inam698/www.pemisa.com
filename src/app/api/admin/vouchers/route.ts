@@ -97,8 +97,9 @@ async function vouchersHandler(
     });
   } catch (error) {
     console.error("Vouchers list error:", error);
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch vouchers" },
+      { success: false, error: "Failed to fetch vouchers", detail: message },
       { status: 500 }
     );
   }
