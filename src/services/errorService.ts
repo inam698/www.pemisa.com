@@ -3,21 +3,16 @@
  * Logs errors to file and optionally to Sentry
  */
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
-const IS_SERVERLESS = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
-const LOG_DIR = IS_SERVERLESS ? "/tmp/logs" : (process.env.LOG_DIR || "./logs");
+const LOG_DIR = process.env.LOG_DIR || "./logs";
 const ERROR_LOG_FILE = join(LOG_DIR, "errors.log");
 const ACCESS_LOG_FILE = join(LOG_DIR, "access.log");
 
-// Ensure log directory exists (use /tmp on serverless)
-try {
-  if (!existsSync(LOG_DIR)) {
-    mkdirSync(LOG_DIR, { recursive: true });
-  }
-} catch {
-  // Silently ignore if filesystem is read-only
+// Ensure log directory exists
+if (!existsSync(LOG_DIR)) {
+  mkdirSync(LOG_DIR, { recursive: true });
 }
 
 export interface ErrorLog {
@@ -87,7 +82,8 @@ export function getErrorSummary(hours: number = 24): {
       return { totalErrors: 0, totalWarnings: 0, lastErrors: [], topEndpoints: [] };
     }
 
-    const content = readFileSync(ERROR_LOG_FILE, "utf-8");
+    const fs = require("fs");
+    const content = fs.readFileSync(ERROR_LOG_FILE, "utf-8");
     const lines = content.split("\n").filter((l: string) => l.trim());
     const cutoffTime = Date.now() - hours * 60 * 60 * 1000;
 
@@ -132,7 +128,8 @@ export function clearOldLogs(daysOld: number = 30): void {
   try {
     if (!existsSync(ERROR_LOG_FILE)) return;
 
-    const content = readFileSync(ERROR_LOG_FILE, "utf-8");
+    const fs = require("fs");
+    const content = fs.readFileSync(ERROR_LOG_FILE, "utf-8");
     const lines = content.split("\n").filter((l: string) => l.trim());
     const cutoffTime = Date.now() - daysOld * 24 * 60 * 60 * 1000;
 
