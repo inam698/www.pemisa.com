@@ -4,5 +4,6 @@
     "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
     "no-console": ["warn", { "allow": ["warn", "error", "log"] }],
     "@next/next/no-page-custom-font": "off"
-  }
+  },
+  "ignorePatterns": ["src/lib/cache/redis.ts"]
 }

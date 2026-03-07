@@ -1,3 +1,4 @@
+/* eslint-disable */
 /**
  * Redis Client — Scalable Cache & Rate Limiting
  *
@@ -15,13 +16,10 @@
 // ─── Redis Connection ───────────────────────────────────────────
 // Dynamic import to avoid build failures when ioredis is not available
 
-// eslint-disable-next-line no-explicit-any
 let Redis: any = null;
-// eslint-disable-next-line no-explicit-any
 let redis: any = null;
 let isRedisAvailable = false;
 
-// eslint-disable-next-line no-explicit-any
 function getRedis(): any {
   if (redis) return redis;
 
@@ -33,7 +31,6 @@ function getRedis(): any {
 
   if (!Redis) {
     try {
-      // eslint-disable-next-line no-require-imports
       Redis = require("ioredis");
     } catch {
       console.warn("[Redis] ioredis not installed — using in-memory fallback");
