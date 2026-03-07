@@ -4,13 +4,13 @@
  */
 
 import { NextResponse } from "next/server";
-import { extractTokenFromHeader, blacklistToken, verifyToken } from "@/lib/auth";
+import { verifyFirebaseIdToken } from "@/middleware/authMiddleware";
 import { logSecurityEvent } from "@/lib/logger";
 
 export async function POST(request: Request): Promise<Response> {
   try {
     const authHeader = request.headers.get("authorization");
-    const token = extractTokenFromHeader(authHeader);
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
 
     if (!token) {
       return NextResponse.json(
@@ -19,10 +19,9 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    // Verify the token is valid before blacklisting
-    const decoded = await verifyToken(token);
+    // Verify the Firebase token
+    const decoded = await verifyFirebaseIdToken(token);
     if (decoded) {
-      await blacklistToken(token);
       logSecurityEvent("User logged out", decoded.userId, "unknown", {
         email: decoded.email,
       });

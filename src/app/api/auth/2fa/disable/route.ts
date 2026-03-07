@@ -4,7 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken, comparePassword } from "@/lib/auth";
+import { comparePassword } from "@/lib/auth";
+import { verifyFirebaseIdToken } from "@/middleware/authMiddleware";
 import prisma from "@/lib/db/prisma";
 import { logApiError, logInfo, logSecurityEvent } from "@/lib/logger";
 
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     const token = request.headers.get("Authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-    const payload = await verifyToken(token);
+    const payload = await verifyFirebaseIdToken(token);
     if (!payload) return NextResponse.json({ success: false, error: "Invalid token" }, { status: 401 });
 
     const body = await request.json();

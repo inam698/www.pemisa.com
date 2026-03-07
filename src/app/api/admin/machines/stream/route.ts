@@ -6,7 +6,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { verifyFirebaseToken, getAdminFirestore } from "@/lib/firebase/admin";
 import { monitoringEventBus, HeartbeatEvent, MonitoringAlert } from "@/lib/monitoring/events";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +26,16 @@ export async function GET(request: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const payload = await verifyToken(token);
-  if (!payload || payload.role !== "ADMIN") {
+  // Verify Firebase ID token
+  const decoded = await verifyFirebaseToken(token);
+  if (!decoded) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  // Check admin role from Firestore
+  const db = getAdminFirestore();
+  const userDoc = await db.collection("users").doc(decoded.uid).get();
+  if (!userDoc.exists || userDoc.data()?.role !== "ADMIN") {
     return new Response("Forbidden", { status: 403 });
   }
 

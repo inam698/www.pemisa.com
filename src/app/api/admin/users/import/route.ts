@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { verifyFirebaseIdToken } from "@/middleware/authMiddleware";
 import prisma from "@/lib/db/prisma";
 import bcrypt from "bcryptjs";
 import { logApiError, logInfo } from "@/lib/logger";
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const payload = await verifyToken(token);
+    const payload = await verifyFirebaseIdToken(token);
     if (!payload || payload.role !== "ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

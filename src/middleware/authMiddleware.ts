@@ -41,6 +41,36 @@ function extractBearerToken(request: NextRequest): string | null {
 }
 
 /**
+ * Verifies a raw Firebase ID token string and returns a JwtPayload.
+ * Use this when you have a token string (e.g., from a query parameter).
+ */
+export async function verifyFirebaseIdToken(
+  idToken: string
+): Promise<JwtPayload | null> {
+  const decoded = await verifyFirebaseToken(idToken);
+  if (!decoded) return null;
+
+  try {
+    const db = getAdminFirestore();
+    const userDoc = await db.collection("users").doc(decoded.uid).get();
+    if (!userDoc.exists) return null;
+
+    const profile = userDoc.data()!;
+    if (profile.disabled) return null;
+
+    return {
+      userId: decoded.uid,
+      email: decoded.email || profile.email || "",
+      role: profile.role as UserRole,
+      stationId: profile.stationId || null,
+    };
+  } catch (err) {
+    console.error("Error verifying Firebase ID token:", err);
+    return null;
+  }
+}
+
+/**
  * Verifies the Firebase ID token from the request and loads user profile.
  * Returns a JwtPayload-compatible object or null if invalid.
  */

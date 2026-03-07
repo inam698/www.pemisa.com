@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
+import { verifyFirebaseIdToken } from "@/middleware/authMiddleware";
 import { getErrorSummary } from "@/services/errorService";
 
 export async function GET(request: NextRequest) {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get("Authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-    const payload = await verifyToken(token);
+    const payload = await verifyFirebaseIdToken(token);
     if (!payload || payload.role !== "ADMIN") {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
