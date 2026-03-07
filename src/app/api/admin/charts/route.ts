@@ -12,10 +12,8 @@ async function chartsHandler(_request: NextRequest, _user: JwtPayload) {
     const data = await getChartData();
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error("Charts error:", error);
-    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch chart data", detail: message },
+      { success: false, error: "Failed to fetch chart data" },
       { status: 500 }
     );
   }

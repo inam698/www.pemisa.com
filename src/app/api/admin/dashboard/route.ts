@@ -22,9 +22,8 @@ async function dashboardHandler(
     });
   } catch (error) {
     console.error("Dashboard error:", error);
-    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch dashboard metrics", detail: message },
+      { success: false, error: "Failed to fetch dashboard metrics" },
       { status: 500 }
     );
   }
