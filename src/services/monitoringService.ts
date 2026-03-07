@@ -27,12 +27,13 @@ export async function getActiveAlerts(): Promise<MonitoringAlert[]> {
   // Instead of scanning ALL machines, filter to those with alert conditions
   // Fetch low-tank machines separately (requires computed comparison)
   // For oilLevel, offline, and temperature — use indexed OR filter
+  // Only include OFFLINE machines that have actually connected (lastSeen not null)
   const [alertMachines, lowTankMachines] = await Promise.all([
     prisma.machine.findMany({
       where: {
         OR: [
           { oilLevel: { lt: 10 } },
-          { status: "OFFLINE" },
+          { status: "OFFLINE", lastSeen: { not: null } },
           { temperature: { gt: 80 } },
         ],
       },
@@ -102,19 +103,26 @@ export async function getActiveAlerts(): Promise<MonitoringAlert[]> {
     }
 
     // Offline alert: no heartbeat for 2+ minutes
+    // Only alert for machines that have actually connected before (lastSeen != null).
+    // Machines that were never online (e.g. freshly registered) are not truly "offline".
     if (
       machine.status === MachineStatus.OFFLINE &&
       machine.lastSeen
     ) {
       const offlineMs = now - machine.lastSeen.getTime();
-      alerts.push({
-        type: "offline",
-        deviceId: machine.deviceId,
-        machineName: machine.name,
-        message: `Machine offline for ${formatDuration(offlineMs)}`,
-        severity: offlineMs > 10 * 60 * 1000 ? "critical" : "warning",
-        timestamp: machine.lastSeen.toISOString(),
-      });
+      // Skip machines that have never sent a real heartbeat (lastSeen still at creation time)
+      // A machine is considered "never connected" if lastSeen is within 5s of creation
+      // or if it has been offline since before the system went live
+      if (offlineMs > 2 * 60 * 1000) {
+        alerts.push({
+          type: "offline",
+          deviceId: machine.deviceId,
+          machineName: machine.name,
+          message: `Machine offline for ${formatDuration(offlineMs)}`,
+          severity: offlineMs > 10 * 60 * 1000 ? "critical" : "warning",
+          timestamp: machine.lastSeen.toISOString(),
+        });
+      }
     }
 
     // Pump failure detection: temperature spike above 80°C
