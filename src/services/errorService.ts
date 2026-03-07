@@ -3,16 +3,20 @@
  * Logs errors to file and optionally to Sentry
  */
 
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
+import { appendFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
 const LOG_DIR = process.env.LOG_DIR || "./logs";
 const ERROR_LOG_FILE = join(LOG_DIR, "errors.log");
 const ACCESS_LOG_FILE = join(LOG_DIR, "access.log");
 
-// Ensure log directory exists
-if (!existsSync(LOG_DIR)) {
-  mkdirSync(LOG_DIR, { recursive: true });
+// Ensure log directory exists (graceful on read-only filesystems like Vercel)
+try {
+  if (!existsSync(LOG_DIR)) {
+    mkdirSync(LOG_DIR, { recursive: true });
+  }
+} catch {
+  // Read-only filesystem (e.g., Vercel serverless) — file logging will be skipped
 }
 
 export interface ErrorLog {
