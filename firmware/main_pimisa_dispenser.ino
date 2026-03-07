@@ -44,6 +44,7 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
+#include <esp_task_wdt.h>
 
 // Pimisa IoT modules
 #include "config.h"
@@ -181,6 +182,13 @@ void setup() {
   pinMode(OIL_LEVEL_PIN, INPUT);
   pinMode(TEMP_SENSOR_PIN, INPUT);
 
+  // ── Initialize hardware watchdog timer ─────────────────────────
+  // Resets ESP32 if loop() hangs for WDT_TIMEOUT_SECONDS.
+  // Protects against infinite loops, deadlocks, and hardware lockups.
+  esp_task_wdt_init(WDT_TIMEOUT_SECONDS, true); // true = trigger reset on timeout
+  esp_task_wdt_add(NULL); // Subscribe current task (loopTask)
+  Serial.printf("[Setup] Watchdog timer enabled: %ds timeout\n", WDT_TIMEOUT_SECONDS);
+
   // ── Initialize WiFi ────────────────────────────────────────────
   lcd.setCursor(0, 1);
   lcd.print("Connecting WiFi.");
@@ -242,6 +250,9 @@ void changeState(DispenserState newState);
 // ═══════════════════════════════════════════════════════════════════════
 
 void loop() {
+  // ── Feed watchdog to prevent reset ─────────────────────────────
+  esp_task_wdt_reset();
+
   // ── Maintain WiFi connection ───────────────────────────────────
   wifiManager.loop();
 

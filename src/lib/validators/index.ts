@@ -104,7 +104,7 @@ export const deviceVoucherRedeemSchema = z.object({
     .min(4, "Voucher code too short")
     .max(12, "Voucher code too long"),
   device_id: z.string().min(1, "Device ID is required"),
-  litres_dispensed: z.number().positive("Litres must be positive"),
+  litres_dispensed: z.number().positive("Litres must be positive").max(50, "Exceeds maximum dispense limit"),
 });
 
 export const deviceSalesReportSchema = z.object({

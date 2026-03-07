@@ -9,6 +9,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <esp_task_wdt.h>
 
 // ─── Public Methods ─────────────────────────────────────────────
 
@@ -71,9 +72,13 @@ ApiResponse ApiClient::_executeRequest(const char* method, const char* endpoint,
     HTTPClient http;
     WiFiClientSecure client;
 
-    // For development, skip SSL verification.
-    // In production, load the server's root CA certificate.
+    // SSL certificate verification
+    #if SSL_VERIFY_SERVER
+    client.setCACert(ROOT_CA_CERT);
+    #else
+    // Development only — skip SSL verification (INSECURE)
     client.setInsecure();
+    #endif
 
     Serial.printf("[API] %s %s", method, endpoint);
     if (attempt > 0) Serial.printf(" (attempt %d)", attempt + 1);

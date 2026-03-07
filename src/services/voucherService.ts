@@ -413,6 +413,14 @@ export async function redeemVoucherFromDevice(
       throw new Error("Voucher has expired");
     }
 
+    // Validate dispensed amount doesn't exceed voucher allocation (10% tolerance for flow sensor)
+    const maxAllowedLitres = voucher.litres * 1.10;
+    if (litresDispensed > maxAllowedLitres) {
+      throw new Error(
+        `Dispensed amount (${litresDispensed.toFixed(2)}L) exceeds voucher allocation (${voucher.litres}L + 10% tolerance)`
+      );
+    }
+
     // Find machine to get station assignment
     const machine = await tx.machine.findUnique({
       where: { deviceId },

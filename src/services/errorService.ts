@@ -3,7 +3,7 @@
  * Logs errors to file and optionally to Sentry
  */
 
-import { appendFileSync, existsSync, mkdirSync } from "fs";
+import { appendFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
 const LOG_DIR = process.env.LOG_DIR || "./logs";
@@ -149,7 +149,7 @@ export function clearOldLogs(daysOld: number = 30): void {
       .map((log: ErrorLog) => JSON.stringify(log))
       .join("\n");
 
-    writeFileSync(ERROR_LOG_FILE, recentLogs + "\n");
+    fs.writeFileSync(ERROR_LOG_FILE, recentLogs + "\n");
   } catch (error) {
     console.error("Failed to clear old logs:", error);
   }

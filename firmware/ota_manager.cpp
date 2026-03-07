@@ -14,6 +14,7 @@
  */
 
 #include "ota_manager.h"
+#include <mbedtls/sha256.h>
 
 bool OtaManager::performUpdate(const String& url, const String& version, const String& checksum) {
   if (_updating) {
@@ -23,6 +24,13 @@ bool OtaManager::performUpdate(const String& url, const String& version, const S
 
   if (url.length() == 0) {
     _lastError = "Empty OTA URL";
+    return false;
+  }
+
+  // Checksum is mandatory — refuse update without it
+  if (checksum.length() != 64) {
+    _lastError = "SHA-256 checksum required (64 hex chars). Got: " + String(checksum.length());
+    Serial.printf("[OTA] REJECTED: Missing or invalid checksum\n");
     return false;
   }
 
@@ -37,13 +45,19 @@ bool OtaManager::performUpdate(const String& url, const String& version, const S
   http.setTimeout(60000); // 60-second timeout for large binaries
   http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
 
+  WiFiClientSecure secureClient;
+  WiFiClient plainClient;
   bool useSSL = url.startsWith("https");
+
   if (useSSL) {
-    // For production, use a proper CA cert bundle
-    // For now, allow insecure for development/testing
-    http.begin(url);
+    #if SSL_VERIFY_SERVER
+    secureClient.setCACert(ROOT_CA_CERT);
+    #else
+    secureClient.setInsecure();
+    #endif
+    http.begin(secureClient, url);
   } else {
-    http.begin(url);
+    http.begin(plainClient, url);
   }
 
   int httpCode = http.GET();
@@ -76,11 +90,16 @@ bool OtaManager::performUpdate(const String& url, const String& version, const S
     return false;
   }
 
-  // Stream firmware to flash in chunks
+  // Stream firmware to flash in chunks, computing SHA-256 in parallel
   WiFiClient* stream = http.getStreamPtr();
   uint8_t buf[4096];
   int bytesWritten = 0;
   int lastProgress = -1;
+
+  // Initialize SHA-256 context for integrity verification
+  mbedtls_sha256_context sha256_ctx;
+  mbedtls_sha256_init(&sha256_ctx);
+  mbedtls_sha256_starts(&sha256_ctx, 0); // 0 = SHA-256 (not SHA-224)
 
   while (http.connected() && bytesWritten < contentLength) {
     int available = stream->available();
@@ -88,10 +107,14 @@ bool OtaManager::performUpdate(const String& url, const String& version, const S
       int toRead = min(available, (int)sizeof(buf));
       int bytesRead = stream->readBytes(buf, toRead);
       if (bytesRead > 0) {
+        // Update SHA-256 hash with this chunk
+        mbedtls_sha256_update(&sha256_ctx, buf, bytesRead);
+
         size_t written = Update.write(buf, bytesRead);
         if (written != (size_t)bytesRead) {
           _lastError = "Write failed: " + String(Update.errorString());
           Serial.printf("[OTA] %s\n", _lastError.c_str());
+          mbedtls_sha256_free(&sha256_ctx);
           Update.abort();
           http.end();
           _updating = false;
@@ -115,10 +138,36 @@ bool OtaManager::performUpdate(const String& url, const String& version, const S
   if (bytesWritten != contentLength) {
     _lastError = "Incomplete download: " + String(bytesWritten) + "/" + String(contentLength);
     Serial.printf("[OTA] %s\n", _lastError.c_str());
+    mbedtls_sha256_free(&sha256_ctx);
     Update.abort();
     _updating = false;
     return false;
   }
+
+  // Verify SHA-256 checksum before finalizing
+  uint8_t hash[32];
+  mbedtls_sha256_finish(&sha256_ctx, hash);
+  mbedtls_sha256_free(&sha256_ctx);
+
+  // Convert hash to hex string
+  char hashHex[65];
+  for (int i = 0; i < 32; i++) {
+    sprintf(hashHex + (i * 2), "%02x", hash[i]);
+  }
+  hashHex[64] = '\0';
+
+  Serial.printf("[OTA] Computed SHA-256: %s\n", hashHex);
+  Serial.printf("[OTA] Expected SHA-256: %s\n", checksum.c_str());
+
+  if (!checksum.equalsIgnoreCase(String(hashHex))) {
+    _lastError = "Checksum mismatch! Firmware may be corrupt or tampered.";
+    Serial.printf("[OTA] CRITICAL: %s\n", _lastError.c_str());
+    Update.abort();
+    _updating = false;
+    return false;
+  }
+
+  Serial.println("[OTA] SHA-256 checksum verified OK");
 
   // Finalize the update
   if (!Update.end(true)) {

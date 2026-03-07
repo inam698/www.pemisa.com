@@ -23,15 +23,74 @@ export interface MonitoringAlert {
 export async function getActiveAlerts(): Promise<MonitoringAlert[]> {
   const alerts: MonitoringAlert[] = [];
 
-  // Use findMany without select to get all fields including new monitoring columns
-  // The `as any` cast is needed until `prisma generate` runs after migration
-  const machines = await (prisma.machine.findMany() as Promise<any[]>);
+  // Only fetch machines that could have alerts — uses indexed columns
+  // Instead of scanning ALL machines, filter to those with alert conditions
+  // Fetch low-tank machines separately (requires computed comparison)
+  // For oilLevel, offline, and temperature — use indexed OR filter
+  const [alertMachines, lowTankMachines] = await Promise.all([
+    prisma.machine.findMany({
+      where: {
+        OR: [
+          { oilLevel: { lt: 10 } },
+          { status: "OFFLINE" },
+          { temperature: { gt: 80 } },
+        ],
+      },
+      select: {
+        deviceId: true,
+        name: true,
+        status: true,
+        lastSeen: true,
+        oilLevel: true,
+        temperature: true,
+        oilCapacityLitres: true,
+        oilRemainingLitres: true,
+      },
+    }),
+    // Low tank: fetch machines where remaining < 10% of capacity
+    // Use raw query for efficient server-side percentage calculation
+    prisma.$queryRaw<Array<{
+      device_id: string;
+      name: string;
+      oil_capacity_litres: number;
+      oil_remaining_litres: number;
+    }>>`
+      SELECT device_id, name, oil_capacity_litres, oil_remaining_litres
+      FROM machines
+      WHERE oil_capacity_litres > 0
+        AND oil_remaining_litres IS NOT NULL
+        AND (oil_remaining_litres / oil_capacity_litres) < 0.10
+    `,
+  ]);
+
+  // Merge and deduplicate by deviceId
+  const seenDeviceIds = new Set<string>();
+  const machines = alertMachines.map((m) => {
+    seenDeviceIds.add(m.deviceId);
+    return m;
+  });
+
+  // Add low-tank machines that weren't already included
+  for (const lt of lowTankMachines) {
+    if (!seenDeviceIds.has(lt.device_id)) {
+      machines.push({
+        deviceId: lt.device_id,
+        name: lt.name,
+        status: "ONLINE",
+        lastSeen: null,
+        oilLevel: null,
+        temperature: null,
+        oilCapacityLitres: lt.oil_capacity_litres,
+        oilRemainingLitres: lt.oil_remaining_litres,
+      });
+    }
+  }
 
   const now = Date.now();
 
   for (const machine of machines) {
-    // Low oil alert: oil_level < 10%
-    if (machine.oilLevel != null && machine.oilLevel < 10) {
+    // Low oil alert: oil level < 10%
+    if (machine.oilLevel !== null && machine.oilLevel !== undefined && machine.oilLevel < 10) {
       alerts.push({
         type: "low_oil",
         deviceId: machine.deviceId,
@@ -59,7 +118,7 @@ export async function getActiveAlerts(): Promise<MonitoringAlert[]> {
     }
 
     // Pump failure detection: temperature spike above 80°C
-    if (machine.temperature != null && machine.temperature > 80) {
+    if (machine.temperature !== null && machine.temperature !== undefined && machine.temperature > 80) {
       alerts.push({
         type: "pump_failure",
         deviceId: machine.deviceId,
