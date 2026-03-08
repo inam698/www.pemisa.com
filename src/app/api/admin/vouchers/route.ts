@@ -81,6 +81,8 @@ async function vouchersHandler(
       status: v.status,
       stationName: v.station?.stationName || null,
       redeemedAt: v.redeemedAt?.toISOString() || null,
+      litresDispensed: v.litresDispensed ?? null,
+      dispensedByDevice: v.dispensedByDevice ?? null,
       expiryDate: v.expiryDate.toISOString(),
       createdAt: v.createdAt.toISOString(),
     }));

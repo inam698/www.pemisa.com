@@ -121,6 +121,33 @@ int configVersion = 0;
 const unsigned long SENSOR_READ_INTERVAL_MS = 5000;
 
 // ═══════════════════════════════════════════════════════════════════════
+//  VOLUME DISPLAY HELPERS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Format volume as mL (integer) when < 1L, or L (2 decimal) when >= 1L
+// buf must be at least 10 chars. Returns pointer to buf.
+char* formatVolume(char* buf, size_t bufSize, float litres) {
+  if (litres < 1.0f) {
+    int ml = (int)(litres * 1000.0f + 0.5f); // round to nearest mL
+    snprintf(buf, bufSize, "%dmL", ml);
+  } else {
+    snprintf(buf, bufSize, "%.2fL", litres);
+  }
+  return buf;
+}
+
+// Format dispensing progress: "111/556mL" or "1.00/2.00L"
+void formatProgress(char* buf, size_t bufSize, float current, float target) {
+  if (target < 1.0f) {
+    int curMl = (int)(current * 1000.0f + 0.5f);
+    int tgtMl = (int)(target * 1000.0f + 0.5f);
+    snprintf(buf, bufSize, "%d/%dmL", curMl, tgtMl);
+  } else {
+    snprintf(buf, bufSize, "%.2f/%.2fL", current, target);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  STATE MACHINE
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -564,7 +591,9 @@ void handleVoucherCodeState(char key) {
           lcd.print("Voucher Approved");
         }
         lcd.setCursor(0, 1);
-        lcd.printf("%.2fL K%.0f #=Go", result.litres, result.amount);
+        char volBuf[10];
+        formatVolume(volBuf, sizeof(volBuf), result.litres);
+        lcd.printf("%s K%.0f #=Go", volBuf, result.amount);
 
         // Wait for confirmation
         while (true) {
@@ -651,7 +680,9 @@ void handleCashAmountState(char key) {
       // Confirm with operator
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.printf("K%.0f = %.2fL", amount, litres);
+      char volBuf2[10];
+      formatVolume(volBuf2, sizeof(volBuf2), litres);
+      lcd.printf("K%.0f = %s", amount, volBuf2);
       lcd.setCursor(0, 1);
       lcd.print("#=Dispense *=No");
 
@@ -726,7 +757,9 @@ void handleBuyLitresState(char key) {
 
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.printf("%.1fL = K%.0f", litres, amount);
+      char volBuf3[10];
+      formatVolume(volBuf3, sizeof(volBuf3), litres);
+      lcd.printf("%s = K%.0f", volBuf3, amount);
       lcd.setCursor(0, 1);
       lcd.print("#=Dispense *=No");
 
@@ -771,7 +804,9 @@ void handleDispensingState(char key) {
     lcd.setCursor(0, 0);
     lcd.printf("Dispensing...   ");
     lcd.setCursor(0, 1);
-    lcd.printf("%.2fL / %.2fL  ", litresDispensed, targetLitres);
+    char progBuf[16];
+    formatProgress(progBuf, sizeof(progBuf), litresDispensed, targetLitres);
+    lcd.printf("%-16s", progBuf);
   }
 
   // Check if target reached
@@ -788,7 +823,9 @@ void handleCompleteState(char key) {
     previousState = STATE_COMPLETE;
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.printf("Done! %.2fL", litresDispensed);
+    char doneBuf[10];
+    formatVolume(doneBuf, sizeof(doneBuf), litresDispensed);
+    lcd.printf("Done! %s", doneBuf);
     lcd.setCursor(0, 1);
     lcd.print("K" + String(transactionAmount, 0) + " #=Menu");
   }
@@ -822,8 +859,8 @@ void handleErrorState(char key) {
 // ═══════════════════════════════════════════════════════════════════════
 
 void startDispensing() {
-  Serial.printf("[Dispense] Starting — target: %.3fL type: %s\n",
-                targetLitres, transactionType.c_str());
+  Serial.printf("[Dispense] Starting — target: %.3fL (%dmL) type: %s\n",
+                targetLitres, (int)(targetLitres * 1000.0f + 0.5f), transactionType.c_str());
 
   // Reset flow counter
   noInterrupts();

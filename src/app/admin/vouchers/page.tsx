@@ -376,6 +376,8 @@ export default function AdminVouchersPage() {
                       <TableHead>Amount</TableHead>
                       <TableHead>Voucher Code</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Dispensed</TableHead>
+                      <TableHead>Device</TableHead>
                       <TableHead>Station</TableHead>
                       <TableHead>Redeemed At</TableHead>
                     </TableRow>
@@ -400,6 +402,26 @@ export default function AdminVouchersPage() {
                           </code>
                         </TableCell>
                         <TableCell>{getStatusBadge(voucher.status)}</TableCell>
+                        <TableCell>
+                          {voucher.litresDispensed != null ? (
+                            <span className="font-semibold">
+                              {voucher.litresDispensed < 1
+                                ? `${Math.round(voucher.litresDispensed * 1000)}mL`
+                                : `${voucher.litresDispensed.toFixed(2)}L`}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {voucher.dispensedByDevice ? (
+                            <code className="bg-muted px-2 py-1 rounded text-xs">
+                              {voucher.dispensedByDevice}
+                            </code>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {voucher.stationName || (
                             <span className="text-muted-foreground">—</span>

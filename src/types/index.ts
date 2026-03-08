@@ -173,6 +173,8 @@ export interface VoucherTableRow {
   status: string;
   stationName: string | null;
   redeemedAt: string | null;
+  litresDispensed: number | null;
+  dispensedByDevice: string | null;
   expiryDate: string;
   createdAt: string;
 }
