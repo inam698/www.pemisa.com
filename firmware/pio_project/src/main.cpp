@@ -55,6 +55,7 @@
 #include "wifi_manager.h"
 #include "api_client.h"
 #include "voucher_service.h"
+#include "voucher_cache.h"
 #include "sales_reporting.h"
 #include "heartbeat_service.h"
 #include "ota_manager.h"
@@ -104,10 +105,14 @@ unsigned long pumpStartTime = 0;
 WifiManager wifiManager;
 ApiClient apiClient;
 VoucherService voucherService;
+VoucherCache voucherCache;
 SalesReporting salesReporting;
 HeartbeatService heartbeatService;
 OtaManager otaManager;
 NvsStorage nvsStorage;
+
+// Track if last voucher was verified offline (for redemption queuing)
+bool lastVoucherWasOffline = false;
 
 // Adaptive timing (server-controlled)
 unsigned long heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS;
@@ -285,12 +290,14 @@ void setup() {
   #endif
 
   voucherService.begin(&apiClient, DEVICE_ID);
+  voucherCache.begin(&apiClient);
   salesReporting.begin(&apiClient, DEVICE_ID, pricePerLitre);
   heartbeatService.begin(&apiClient, DEVICE_ID, heartbeatIntervalMs);
 
-  // Send initial heartbeat
+  // Send initial heartbeat and load voucher cache
   if (wifiManager.isConnected()) {
     heartbeatService.sendNow();
+    voucherCache.refresh();
   }
 
   Serial.println("[Setup] Initialization complete");
@@ -343,10 +350,18 @@ void loop() {
   }
   #endif
 
+  // ── Voucher cache refresh (works independently) ─────────────────
+  voucherCache.loop();
+
   // ── Send heartbeats & process offline queues ───────────────────
   if (wifiManager.isConnected()) {
     heartbeatService.loop();
     salesReporting.processOfflineQueue();
+
+    // Clear locally-used tracking when back online (server is source of truth)
+    if (voucherCache.getLocallyUsedCount() > 0) {
+      voucherCache.clearLocallyUsed();
+    }
 
     // Upload NVS-persisted offline sales (survived power outage)
     #if NVS_ENABLED
@@ -439,7 +454,7 @@ void handleIdleState(char key) {
     lcd.print("PIMISA DISPENSER");
     lcd.setCursor(0, 1);
 
-    // Show connection status
+    // Show connection status + cache info
     if (wifiManager.isConnected()) {
       uint8_t queued = salesReporting.getQueuedCount();
       if (queued > 0) {
@@ -448,7 +463,12 @@ void handleIdleState(char key) {
         lcd.print("Online     #=Go");
       }
     } else {
-      lcd.print("Offline    #=Go");
+      int cached = voucherCache.getCachedCount();
+      if (cached > 0) {
+        lcd.printf("Offl V:%d   #=Go", cached);
+      } else {
+        lcd.print("Offline    #=Go");
+      }
     }
   }
 
@@ -470,9 +490,9 @@ void handleSelectModeState(char key) {
   }
 
   if (key == 'A') {
-    // Voucher mode requires WiFi
-    if (!wifiManager.isConnected()) {
-      errorMessage = "No WiFi for vou-";
+    // Voucher mode: requires WiFi OR cached vouchers
+    if (!wifiManager.isConnected() && !voucherCache.hasCachedVouchers()) {
+      errorMessage = "No WiFi/cache";
       changeState(STATE_ERROR);
       return;
     }
@@ -564,55 +584,111 @@ void handleVoucherCodeState(char key) {
       voucherCode = inputBuffer;
       inputBuffer = "";
 
-      // ── Verify voucher with cloud server ─────────────────
+      // ── Verify voucher: try server first, fall back to cache ──
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.print("Verifying...");
-      lcd.setCursor(0, 1);
-      lcd.print("Please wait");
 
-      VoucherResult result = voucherService.verify(
-          phoneNumber.c_str(), voucherCode.c_str());
+      bool verified = false;
+      lastVoucherWasOffline = false;
 
-      if (result.approved) {
-        transactionType = "voucher";
-        transactionLitres = result.litres;
-        transactionAmount = result.amount;
-        targetLitres = result.litres;
+      if (wifiManager.isConnected()) {
+        lcd.print("Verifying...");
+        lcd.setCursor(0, 1);
+        lcd.print("Please wait");
 
-        // Show beneficiary name + litres on LCD
+        VoucherResult result = voucherService.verify(
+            phoneNumber.c_str(), voucherCode.c_str());
+
+        if (result.approved) {
+          verified = true;
+          transactionType = "voucher";
+          transactionLitres = result.litres;
+          transactionAmount = result.amount;
+          targetLitres = result.litres;
+          lastVoucherWasOffline = false;
+
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          String ownerLine = result.beneficiaryName;
+          if (ownerLine.length() > 16) ownerLine = ownerLine.substring(0, 16);
+          if (ownerLine.length() > 0) {
+            lcd.print(ownerLine);
+          } else {
+            lcd.print("Voucher Approved");
+          }
+          lcd.setCursor(0, 1);
+          char volBuf[10];
+          formatVolume(volBuf, sizeof(volBuf), result.litres);
+          lcd.printf("%s K%.0f #=Go", volBuf, result.amount);
+        } else if (result.message == "Server error" && voucherCache.hasCachedVouchers()) {
+          // Server unreachable but we have cache — try offline
+          Serial.println("[Voucher] Server unreachable, trying offline cache...");
+        } else {
+          errorMessage = result.message;
+          if (errorMessage.length() > 16) {
+            errorMessage = errorMessage.substring(0, 16);
+          }
+          changeState(STATE_ERROR);
+          return;
+        }
+      }
+
+      // ── Offline fallback: verify from local cache ──────────
+      if (!verified && voucherCache.hasCachedVouchers()) {
         lcd.clear();
         lcd.setCursor(0, 0);
-        String ownerLine = result.beneficiaryName;
-        if (ownerLine.length() > 16) ownerLine = ownerLine.substring(0, 16);
-        if (ownerLine.length() > 0) {
-          lcd.print(ownerLine);
-        } else {
-          lcd.print("Voucher Approved");
-        }
+        lcd.print("[OFFLINE]");
         lcd.setCursor(0, 1);
-        char volBuf[10];
-        formatVolume(volBuf, sizeof(volBuf), result.litres);
-        lcd.printf("%s K%.0f #=Go", volBuf, result.amount);
+        lcd.print("Checking cache..");
+        delay(300);
 
-        // Wait for confirmation
-        while (true) {
-          char confirmKey = keypad.getKey();
-          if (confirmKey == '#') {
-            startDispensing();
-            break;
-          } else if (confirmKey == '*') {
-            changeState(STATE_IDLE);
-            return;
+        OfflineVoucherResult offResult = voucherCache.verifyOffline(
+            phoneNumber.c_str(), voucherCode.c_str());
+
+        if (offResult.approved) {
+          verified = true;
+          transactionType = "voucher";
+          transactionLitres = offResult.litres;
+          transactionAmount = offResult.amount;
+          targetLitres = offResult.litres;
+          lastVoucherWasOffline = true;
+
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          String offName = offResult.beneficiaryName;
+          if (offName.length() > 10) offName = offName.substring(0, 10);
+          lcd.printf("[OFF]%s", offName.length() > 0 ? offName.c_str() : "Approved");
+          lcd.setCursor(0, 1);
+          char volBuf2[10];
+          formatVolume(volBuf2, sizeof(volBuf2), offResult.litres);
+          lcd.printf("%s K%.0f #=Go", volBuf2, offResult.amount);
+        } else {
+          errorMessage = offResult.message;
+          if (errorMessage.length() > 16) {
+            errorMessage = errorMessage.substring(0, 16);
           }
-          delay(50);
+          changeState(STATE_ERROR);
+          return;
         }
-      } else {
-        errorMessage = result.message;
-        if (errorMessage.length() > 16) {
-          errorMessage = errorMessage.substring(0, 16);
-        }
+      }
+
+      if (!verified) {
+        errorMessage = "No WiFi/cache";
         changeState(STATE_ERROR);
+        return;
+      }
+
+      // Wait for confirmation
+      while (true) {
+        char confirmKey = keypad.getKey();
+        if (confirmKey == '#') {
+          startDispensing();
+          break;
+        } else if (confirmKey == '*') {
+          changeState(STATE_IDLE);
+          return;
+        }
+        delay(50);
       }
     } else {
       lcd.setCursor(0, 0);
@@ -902,8 +978,9 @@ void stopPump() {
 }
 
 void finishTransaction() {
-  Serial.printf("[Transaction] Complete — type: %s  litres: %.3f  amount: K%.2f\n",
-                transactionType.c_str(), litresDispensed, transactionAmount);
+  Serial.printf("[Transaction] Complete — type: %s  litres: %.3f  amount: K%.2f  offline: %s\n",
+                transactionType.c_str(), litresDispensed, transactionAmount,
+                lastVoucherWasOffline ? "YES" : "NO");
 
   // Track pump cycle and last voucher for heartbeat telemetry
   heartbeatService.incrementPumpCycles();
@@ -921,23 +998,40 @@ void finishTransaction() {
                                   transactionAmount, "");
   }
 
-  // ── Report to cloud server (legacy sale endpoint) ───────────────
+  // ── Report to cloud server ──────────────────────────────────────
   if (transactionType == "voucher") {
-    // Confirm voucher redemption
-    bool redeemed = voucherService.redeem(voucherCode.c_str(), litresDispensed);
-    if (!redeemed) {
-      Serial.println("[Transaction] WARNING: Voucher redemption report failed (queued)");
+    if (lastVoucherWasOffline) {
+      // Offline voucher: mark used locally + save to NVS for later sync
+      voucherCache.markUsedLocally(voucherCode.c_str());
+      saveToNvs(litresDispensed, transactionAmount, "voucher",
+                voucherCode.c_str(), phoneNumber.c_str());
+      Serial.println("[Transaction] Offline voucher queued for sync");
+    } else {
+      // Online: confirm redemption with server immediately
+      bool redeemed = voucherService.redeem(voucherCode.c_str(), litresDispensed);
+      if (!redeemed) {
+        Serial.println("[Transaction] WARNING: Voucher redemption failed — saving to NVS");
+        saveToNvs(litresDispensed, transactionAmount, "voucher",
+                  voucherCode.c_str(), phoneNumber.c_str());
+      }
+      // Also report as a sale
+      salesReporting.reportVoucherSale(
+          litresDispensed, transactionAmount,
+          voucherCode.c_str(), phoneNumber.c_str());
     }
-    // Also report as a sale
-    salesReporting.reportVoucherSale(
-        litresDispensed, transactionAmount,
-        voucherCode.c_str(), phoneNumber.c_str());
   } else if (transactionType == "cash") {
     // Report cash sale
     salesReporting.reportCashSale(litresDispensed, transactionAmount);
   }
 
+  // ── Persist to NVS counters ─────────────────────────────────────
+  #if NVS_ENABLED
+  nvsStorage.addDispensedLitres(litresDispensed);
+  nvsStorage.incrementPumpCycles();
+  #endif
+
   // ── Reset transaction state ─────────────────────────────────────
+  lastVoucherWasOffline = false;
   changeState(STATE_COMPLETE);
 }
 
@@ -1073,6 +1167,11 @@ void uploadNvsSales() {
   while (nvsStorage.peekOfflineSale(sale)) {
     bool success;
     if (strcmp(sale.paymentType, "voucher") == 0) {
+      // For offline vouchers: redeem first, then report sale
+      bool redeemed = voucherService.redeem(sale.voucherCode, sale.litres);
+      if (!redeemed) {
+        break; // Server unreachable — try again next cycle
+      }
       success = salesReporting.reportVoucherSale(
           sale.litres, sale.amount, sale.voucherCode, sale.phone);
     } else {
