@@ -414,17 +414,20 @@ export async function redeemVoucherFromDevice(
     }
 
     // Validate dispensed amount doesn't exceed voucher allocation (10% tolerance for flow sensor)
-    const maxAllowedLitres = voucher.litres * 1.10;
-    if (litresDispensed > maxAllowedLitres) {
-      throw new Error(
-        `Dispensed amount (${litresDispensed.toFixed(2)}L) exceeds voucher allocation (${voucher.litres}L + 10% tolerance)`
-      );
-    }
-
-    // Find machine to get station assignment
+    // Calculate litres from amount and machine price (litres field may be 0 if not pre-calculated)
     const machine = await tx.machine.findUnique({
       where: { deviceId },
     });
+
+    const allocatedLitres = machine
+      ? voucher.amount / machine.pricePerLitre
+      : voucher.litres;
+    const maxAllowedLitres = allocatedLitres * 1.10;
+    if (litresDispensed > maxAllowedLitres) {
+      throw new Error(
+        `Dispensed amount (${litresDispensed.toFixed(2)}L) exceeds voucher allocation (${allocatedLitres.toFixed(2)}L + 10% tolerance)`
+      );
+    }
 
     const updatedVoucher = await tx.voucher.update({
       where: { id: voucher.id },
