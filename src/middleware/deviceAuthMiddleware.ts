@@ -17,7 +17,6 @@ import {
   getCachedDeviceAuth,
   cacheDeviceAuth,
   invalidateDeviceAuth,
-  rateLimitCheck,
   CachedDeviceAuth,
 } from "@/lib/cache/redis";
 
@@ -30,23 +29,36 @@ function unauthorizedResponse(message: string = "Device authentication failed") 
   );
 }
 
-// ─── Brute-Force Protection (Redis-backed) ─────────────────────
+// ─── Brute-Force Protection (failure-only counting) ────────────
 
 const MAX_FAILED_ATTEMPTS = 10;
 const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
-async function checkBruteForce(
-  identifier: string
-): Promise<{ blocked: boolean; retryAfterMs: number }> {
-  const { allowed, resetTime } = await rateLimitCheck(
-    `bruteforce:${identifier}`,
-    MAX_FAILED_ATTEMPTS,
-    LOCK_DURATION_MS
-  );
-  if (!allowed) {
-    return { blocked: true, retryAfterMs: resetTime - Date.now() };
+// Track only FAILED auth attempts (not every request)
+const failureCounters = new Map<string, { count: number; expiresAt: number }>();
+
+function isDeviceLocked(deviceId: string): boolean {
+  const entry = failureCounters.get(deviceId);
+  if (!entry) return false;
+  if (Date.now() > entry.expiresAt) {
+    failureCounters.delete(deviceId);
+    return false;
   }
-  return { blocked: false, retryAfterMs: 0 };
+  return entry.count >= MAX_FAILED_ATTEMPTS;
+}
+
+function recordAuthFailure(deviceId: string): void {
+  const now = Date.now();
+  const entry = failureCounters.get(deviceId);
+  if (!entry || now > entry.expiresAt) {
+    failureCounters.set(deviceId, { count: 1, expiresAt: now + LOCK_DURATION_MS });
+  } else {
+    entry.count++;
+  }
+}
+
+function clearAuthFailures(deviceId: string): void {
+  failureCounters.delete(deviceId);
 }
 
 // ─── Device Authentication ──────────────────────────────────────
@@ -73,10 +85,9 @@ export async function authenticateDevice(
 
   if (!deviceId || !apiKey) return null;
 
-  // Check brute-force lockout (Redis-backed)
-  const { blocked, retryAfterMs } = await checkBruteForce(deviceId);
-  if (blocked) {
-    console.warn(`Device ${deviceId} locked out for ${Math.ceil(retryAfterMs / 1000)}s`);
+  // Check brute-force lockout (only counts failed attempts)
+  if (isDeviceLocked(deviceId)) {
+    console.warn(`Device ${deviceId} locked out due to repeated auth failures`);
     return null;
   }
 
@@ -115,6 +126,7 @@ export async function authenticateDevice(
     // 3. Verify API key with bcrypt
     const keyMatch = await bcrypt.compare(apiKey, cached.apiKeyHash);
     if (!keyMatch) {
+      recordAuthFailure(deviceId);
       return null;
     }
 
@@ -122,6 +134,9 @@ export async function authenticateDevice(
     if (cached.status === "MAINTENANCE") {
       return null;
     }
+
+    // Auth succeeded — clear any previous failure count
+    clearAuthFailures(deviceId);
 
     return {
       deviceId: cached.deviceId,
