@@ -84,7 +84,7 @@ async function redeemHandler(request: NextRequest) {
         amount: updatedVoucher.amount,
         litres: litres_dispensed,
         deviceId: device_id,
-        stationId: device.stationId,
+        stationId: device.stationId || "",
         timestamp: new Date().toISOString(),
       });
 
@@ -132,7 +132,7 @@ async function redeemHandler(request: NextRequest) {
     // Log audit trail for dashboard redemption
     await logAudit({
       action: "REDEEM",
-      actor: user.email || user.uid,
+      actor: user.email || user.userId,
       actorRole: user.role || "STATION",
       target: updatedVoucher.voucherCode,
       details: {

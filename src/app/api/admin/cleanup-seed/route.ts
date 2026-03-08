@@ -84,14 +84,7 @@ async function handler(request: NextRequest, user: JwtPayload) {
       results.empty_stations_deleted = 0;
     }
 
-    // 5. Delete beneficiaries with seed phone numbers that have no remaining vouchers
-    const deletedBeneficiaries = await prisma.beneficiary.deleteMany({
-      where: {
-        phone: { in: SEED_PHONES },
-        vouchers: { none: {} },
-      },
-    });
-    results.beneficiaries_deleted = deletedBeneficiaries.count;
+    // 5. (Beneficiaries are stored directly on vouchers, no separate table)
 
     // 6. Summary: count remaining real data
     const [machineCount, stationCount, voucherCount, userCount] =
