@@ -7,7 +7,7 @@
 
 import { NextRequest } from "next/server";
 import { verifyFirebaseToken, getAdminFirestore } from "@/lib/firebase/admin";
-import { monitoringEventBus, HeartbeatEvent, MonitoringAlert } from "@/lib/monitoring/events";
+import { monitoringEventBus, HeartbeatEvent, MonitoringAlert, RedemptionEvent } from "@/lib/monitoring/events";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +83,29 @@ export async function GET(request: NextRequest) {
         }
       );
 
+      // Subscribe to voucher redemption events
+      const unsubRedemptions = monitoringEventBus.subscribeRedemptions(
+        (event: RedemptionEvent) => {
+          try {
+            const payload = {
+              type: "redemption",
+              voucherCode: event.voucherCode,
+              beneficiary: event.beneficiary,
+              amount: event.amount,
+              litres: event.litres,
+              deviceId: event.deviceId,
+              stationId: event.stationId,
+              timestamp: event.timestamp,
+            };
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(payload)}\n\n`)
+            );
+          } catch {
+            // Stream closed
+          }
+        }
+      );
+
       // Keepalive ping every 30s to prevent timeout
       const keepalive = setInterval(() => {
         try {
@@ -96,6 +119,7 @@ export async function GET(request: NextRequest) {
       request.signal.addEventListener("abort", () => {
         unsubHeartbeat();
         unsubAlerts();
+        unsubRedemptions();
         clearInterval(keepalive);
         try {
           controller.close();

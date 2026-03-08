@@ -17,6 +17,8 @@ import type { JwtPayload } from "@/types";
 import { voucherRedeemSchema, deviceVoucherRedeemSchema } from "@/lib/validators";
 import { redeemVoucher, redeemVoucherFromDevice } from "@/services/voucherService";
 import { recordSale } from "@/services/salesService";
+import { logAudit } from "@/services/auditService";
+import { publishRedemptionEvent } from "@/lib/monitoring/events";
 
 async function redeemHandler(request: NextRequest) {
   try {
@@ -60,6 +62,32 @@ async function redeemHandler(request: NextRequest) {
         phone: updatedVoucher.phone,
       });
 
+      // Log audit trail for device redemption
+      await logAudit({
+        action: "REDEEM",
+        actor: `device:${device_id}`,
+        actorRole: "DEVICE",
+        target: voucher_code,
+        details: {
+          litres_dispensed,
+          amount: updatedVoucher.amount,
+          beneficiary: updatedVoucher.name,
+          phone: updatedVoucher.phone,
+          deviceId: device_id,
+        },
+      });
+
+      // Push real-time notification to admin dashboard
+      publishRedemptionEvent({
+        voucherCode: voucher_code,
+        beneficiary: updatedVoucher.name || "Unknown",
+        amount: updatedVoucher.amount,
+        litres: litres_dispensed,
+        deviceId: device_id,
+        stationId: device.stationId,
+        timestamp: new Date().toISOString(),
+      });
+
       return NextResponse.json({
         success: true,
         message: "Voucher redeemed successfully",
@@ -100,6 +128,31 @@ async function redeemHandler(request: NextRequest) {
 
     // Redeem the voucher (atomic transaction)
     const updatedVoucher = await redeemVoucher(voucherId, stationId);
+
+    // Log audit trail for dashboard redemption
+    await logAudit({
+      action: "REDEEM",
+      actor: user.email || user.uid,
+      actorRole: user.role || "STATION",
+      target: updatedVoucher.voucherCode,
+      details: {
+        amount: updatedVoucher.amount,
+        beneficiary: updatedVoucher.name,
+        stationId,
+        stationName: updatedVoucher.station?.stationName,
+      },
+    });
+
+    // Push real-time notification to admin dashboard
+    publishRedemptionEvent({
+      voucherCode: updatedVoucher.voucherCode,
+      beneficiary: updatedVoucher.name || "Unknown",
+      amount: updatedVoucher.amount,
+      litres: 0,
+      deviceId: null,
+      stationId: stationId,
+      timestamp: new Date().toISOString(),
+    });
 
     return NextResponse.json({
       success: true,

@@ -82,7 +82,7 @@
 
 // ─── Watchdog Timer ─────────────────────────────────────────
 // Hardware watchdog resets ESP32 if loop() hangs for too long.
-#define WDT_TIMEOUT_SECONDS  30     // Reset if no feed for 30s
+#define WDT_TIMEOUT_SECONDS  60     // Reset if no feed for 60s
 
 // ─── SSL/TLS Configuration ──────────────────────────────────
 // Set to true in production to verify server certificate.

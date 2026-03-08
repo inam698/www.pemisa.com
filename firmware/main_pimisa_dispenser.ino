@@ -184,13 +184,13 @@ void setup() {
 
   // ── Initialize hardware watchdog timer ─────────────────────────
   // Resets ESP32 if loop() hangs for WDT_TIMEOUT_SECONDS.
-  // Protects against infinite loops, deadlocks, and hardware lockups.
+  // ESP32 Arduino Core v3.x pre-initializes TWDT, so we reconfigure it.
   const esp_task_wdt_config_t wdt_config = {
     .timeout_ms = WDT_TIMEOUT_SECONDS * 1000,
     .idle_core_mask = 0,        // Don't watch idle tasks
     .trigger_panic = true,      // Reset on timeout
   };
-  esp_task_wdt_init(&wdt_config);
+  esp_task_wdt_reconfigure(&wdt_config);
   esp_task_wdt_add(NULL); // Subscribe current task (loopTask)
   Serial.printf("[Setup] Watchdog timer enabled: %ds timeout\n", WDT_TIMEOUT_SECONDS);
 

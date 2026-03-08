@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/utils/apiClient";
 import { DashboardMetrics } from "@/types";
 import { useToast } from "@/components/ui/toast";
@@ -34,6 +34,8 @@ import {
   TrendingUp,
   RefreshCw,
   BarChart3,
+  Bell,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,10 +66,23 @@ const STATUS_COLORS: Record<string, string> = {
   EXPIRED: "#ef4444",
 };
 
+interface RedemptionNotification {
+  id: string;
+  voucherCode: string;
+  beneficiary: string;
+  amount: number;
+  litres: number;
+  deviceId: string | null;
+  timestamp: string;
+}
+
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [chartData, setChartData] = useState<ChartData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [notifications, setNotifications] = useState<RedemptionNotification[]>([]);
+  const [sseConnected, setSseConnected] = useState(false);
+  const eventSourceRef = useRef<EventSource | null>(null);
   const { addToast } = useToast();
 
   const fetchData = useCallback(async () => {
@@ -94,6 +109,73 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // ─── SSE: Real-time redemption notifications ─────────────────
+  useEffect(() => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("pimisa_token") : null;
+    if (!token) return;
+
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let unmounted = false;
+
+    function connect() {
+      if (unmounted) return;
+
+      eventSource = new EventSource(
+        `/api/admin/machines/stream?token=${encodeURIComponent(token!)}`
+      );
+      eventSourceRef.current = eventSource;
+
+      eventSource.onopen = () => setSseConnected(true);
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "redemption") {
+            const notification: RedemptionNotification = {
+              id: `${data.voucherCode}-${Date.now()}`,
+              voucherCode: data.voucherCode,
+              beneficiary: data.beneficiary,
+              amount: data.amount,
+              litres: data.litres,
+              deviceId: data.deviceId,
+              timestamp: data.timestamp,
+            };
+            setNotifications(prev => [notification, ...prev].slice(0, 10));
+
+            addToast({
+              title: "Voucher Redeemed",
+              description: `${data.beneficiary} — K${data.amount} (${data.litres > 0 ? data.litres.toFixed(2) + "L" : "manual"})`,
+            });
+
+            // Auto-refresh dashboard metrics
+            fetchData();
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      };
+
+      eventSource.onerror = () => {
+        setSseConnected(false);
+        eventSource?.close();
+        eventSourceRef.current = null;
+        if (unmounted) return;
+        const delay = Math.min(1000 * Math.pow(2, 0), 30000);
+        reconnectTimer = setTimeout(connect, delay);
+      };
+    }
+
+    connect();
+
+    return () => {
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      eventSource?.close();
+      eventSourceRef.current = null;
+    };
+  }, [addToast, fetchData]);
 
   if (isLoading && !metrics) {
     return (
@@ -153,6 +235,46 @@ export default function AdminDashboardPage() {
           Refresh
         </Button>
       </div>
+
+      {/* ─── Live Redemption Feed ───────────────────────────────── */}
+      {notifications.length > 0 && (
+        <Card className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">
+                Live Redemptions
+              </CardTitle>
+              {sseConnected && (
+                <span className="flex items-center gap-1 text-xs text-green-600">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  Live
+                </span>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {notifications.slice(0, 5).map((n) => (
+              <div key={n.id} className="flex items-center justify-between text-sm py-1 border-b border-green-100 dark:border-green-900 last:border-0">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-3 w-3 text-green-600" />
+                  <span className="font-medium">{n.beneficiary}</span>
+                  <span className="text-muted-foreground">— K{n.amount}</span>
+                  {n.litres > 0 && (
+                    <Badge variant="outline" className="text-xs">{n.litres.toFixed(2)}L</Badge>
+                  )}
+                  {n.deviceId && (
+                    <Badge variant="secondary" className="text-xs">{n.deviceId}</Badge>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(n.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ─── Metric Cards ───────────────────────────────────────── */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

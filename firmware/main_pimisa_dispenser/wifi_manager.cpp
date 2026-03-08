@@ -12,12 +12,28 @@ void WifiManager::begin(const char* ssid, const char* password, unsigned long ti
   _ssid = ssid;
   _password = password;
   _timeoutMs = timeoutMs;
-
-  WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
+  _retryCount = 0;
 
   Serial.println("[WiFi] Initializing...");
   Serial.printf("[WiFi] SSID: %s\n", _ssid);
+
+  // ESP32 Arduino Core 3.x: Do NOT call WiFi.mode() explicitly.
+  // The framework pre-creates the STA netif; calling WiFi.mode(WIFI_STA)
+  // tries to re-create it, causing netstack error 12308.
+  WiFi.setAutoReconnect(true);
+
+  // Quick scan to verify target network is visible
+  Serial.println("[WiFi] Scanning for networks...");
+  int n = WiFi.scanNetworks();
+  bool found = false;
+  for (int i = 0; i < n; i++) {
+    Serial.printf("  [%d] %s (%ddBm) ch%d\n", i, WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i));
+    if (WiFi.SSID(i) == _ssid) found = true;
+  }
+  if (!found && n > 0) {
+    Serial.printf("[WiFi] WARNING: '%s' not found in scan!\n", _ssid);
+  }
+  WiFi.scanDelete();
 
   _attemptConnection();
 }
@@ -82,8 +98,11 @@ void WifiManager::_attemptConnection() {
 
   Serial.printf("[WiFi] Connecting (attempt %d)...\n", _retryCount);
 
-  WiFi.disconnect(true);
-  delay(100);
+  // On retries, do a soft disconnect (no deinit) before reconnecting
+  if (_retryCount > 1) {
+    WiFi.disconnect();
+    delay(200);
+  }
   WiFi.begin(_ssid, _password);
 
   // Block for initial connection attempt up to timeout

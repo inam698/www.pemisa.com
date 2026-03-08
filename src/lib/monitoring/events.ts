@@ -21,12 +21,24 @@ export interface MonitoringAlert {
   timestamp: string;
 }
 
+export interface RedemptionEvent {
+  voucherCode: string;
+  beneficiary: string;
+  amount: number;
+  litres: number;
+  deviceId: string | null;
+  stationId: string;
+  timestamp: string;
+}
+
 type Listener = (event: HeartbeatEvent) => void;
 type AlertListener = (alert: MonitoringAlert) => void;
+type RedemptionListener = (event: RedemptionEvent) => void;
 
 class MonitoringEventBus {
   private listeners = new Set<Listener>();
   private alertListeners = new Set<AlertListener>();
+  private redemptionListeners = new Set<RedemptionListener>();
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -36,6 +48,11 @@ class MonitoringEventBus {
   subscribeAlerts(listener: AlertListener): () => void {
     this.alertListeners.add(listener);
     return () => this.alertListeners.delete(listener);
+  }
+
+  subscribeRedemptions(listener: RedemptionListener): () => void {
+    this.redemptionListeners.add(listener);
+    return () => this.redemptionListeners.delete(listener);
   }
 
   publish(event: HeartbeatEvent) {
@@ -52,6 +69,16 @@ class MonitoringEventBus {
     for (const listener of this.alertListeners) {
       try {
         listener(alert);
+      } catch {
+        // Ignore listener errors
+      }
+    }
+  }
+
+  publishRedemption(event: RedemptionEvent) {
+    for (const listener of this.redemptionListeners) {
+      try {
+        listener(event);
       } catch {
         // Ignore listener errors
       }
@@ -84,6 +111,14 @@ export function publishHeartbeatEvent(event: HeartbeatEvent) {
 /**
  * Called when a machine is detected as offline (stale status sweep).
  */
+/**
+ * Called when a voucher is redeemed (device or dashboard).
+ * Pushes real-time notification to admin SSE clients.
+ */
+export function publishRedemptionEvent(event: RedemptionEvent) {
+  monitoringEventBus.publishRedemption(event);
+}
+
 export function publishOfflineAlert(deviceId: string) {
   monitoringEventBus.publishAlert({
     type: "offline",
