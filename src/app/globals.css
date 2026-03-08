@@ -55,6 +55,31 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* PWA: safe area for notched phones */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Prevent text selection highlight on mobile tap */
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Better touch scrolling */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
   }
 }
 

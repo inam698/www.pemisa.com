@@ -201,14 +201,14 @@ export default function AdminVouchersPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Vouchers</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Vouchers</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
             Manage and track all distributed vouchers
           </p>
         </div>
-        <Button onClick={() => setShowGenerate(true)}>
+        <Button className="self-start sm:self-auto" onClick={() => setShowGenerate(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Generate Voucher
         </Button>
@@ -239,7 +239,7 @@ export default function AdminVouchersPage() {
               <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-2 border-amber-200 dark:border-amber-800 rounded-xl p-5 text-center">
                 <p className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-2">Voucher Code</p>
                 <div className="flex items-center justify-center gap-3">
-                  <code className="text-4xl font-extrabold tracking-[0.3em] text-amber-800 dark:text-amber-300">
+                  <code className="text-2xl sm:text-4xl font-extrabold tracking-[0.2em] sm:tracking-[0.3em] text-amber-800 dark:text-amber-300">
                     {generatedCode}
                   </code>
                   <Button variant="ghost" size="sm" onClick={() => copyCode(generatedCode)} title="Copy code">
@@ -265,7 +265,7 @@ export default function AdminVouchersPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Button variant="outline" className="flex-1" onClick={resetGenerateForm}>
                   Close
                 </Button>

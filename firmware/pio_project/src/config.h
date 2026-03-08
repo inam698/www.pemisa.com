@@ -52,9 +52,10 @@
 // ─── Flow Sensor Calibration ────────────────────────────────────
 // Pulses per litre - MUST be calibrated for your specific sensor.
 // AICHI OF05ZAT: ~2174 pulses/litre (typical)
-// YF-S201:       ~450 pulses/litre (typical)
-#define PULSES_PER_LITRE    450.0f
+// YF-S201:       ~253 pulses/litre (calibrated)
+#define PULSES_PER_LITRE    252.0f
 #define FLOW_TOLERANCE      0.02f  // ±20ml tolerance
+#define PUMP_OVERRUN_ML     65.0f  // ml of oil that flows after pump stops (fluid inertia)
 
 // ─── Oil Price Configuration ────────────────────────────────────
 // Default price per litre in ZMW. Can be updated from server.

@@ -90,21 +90,21 @@ export default function AuditTrailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6" /> Audit Trail</h1>
-          <p className="text-muted-foreground">Track all system activity and user actions</p>
+          <p className="text-muted-foreground text-sm">Track all system activity and user actions</p>
         </div>
-        <Button variant="outline" onClick={handleExport}>
+        <Button variant="outline" className="self-start sm:self-auto" onClick={handleExport}>
           <Download className="h-4 w-4 mr-2" /> Export CSV
         </Button>
       </div>
 
       <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Input placeholder="Search by actor email..." className="flex-1" value={actorSearch} onChange={(e) => { setActorSearch(e.target.value); setPage(1); }} />
-            <Select value={actionFilter} onChange={(e) => { setActionFilter(e.target.value); setPage(1); }} className="w-52">
+            <Select value={actionFilter} onChange={(e) => { setActionFilter(e.target.value); setPage(1); }} className="w-full sm:w-52">
               {ALL_ACTIONS.map((a) => <option key={a} value={a}>{a === "ALL" ? "All Actions" : a.replace(/_/g, " ")}</option>)}
             </Select>
           </div>
@@ -116,6 +116,7 @@ export default function AuditTrailPage() {
           {loading ? (
             <div className="flex justify-center p-12"><Spinner size="lg" /></div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -149,6 +150,7 @@ export default function AuditTrailPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -223,14 +223,14 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
             Voucher distribution overview and metrics
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData}>
+        <Button variant="outline" size="sm" onClick={fetchData} className="self-start sm:self-auto">
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
@@ -255,9 +255,9 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-1">
             {notifications.slice(0, 5).map((n) => (
-              <div key={n.id} className="flex items-center justify-between text-sm py-1 border-b border-green-100 dark:border-green-900 last:border-0">
-                <div className="flex items-center gap-2">
-                  <Bell className="h-3 w-3 text-green-600" />
+              <div key={n.id} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm py-2 border-b border-green-100 dark:border-green-900 last:border-0 gap-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Bell className="h-3 w-3 text-green-600 shrink-0" />
                   <span className="font-medium">{n.beneficiary}</span>
                   <span className="text-muted-foreground">— K{n.amount}</span>
                   {n.litres > 0 && (
@@ -267,7 +267,7 @@ export default function AdminDashboardPage() {
                     <Badge variant="secondary" className="text-xs">{n.deviceId}</Badge>
                   )}
                 </div>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground shrink-0">
                   {new Date(n.timestamp).toLocaleTimeString()}
                 </span>
               </div>
@@ -448,6 +448,7 @@ export default function AdminDashboardPage() {
         <CardContent>
           {metrics?.recentRedemptions &&
           metrics.recentRedemptions.length > 0 ? (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -478,6 +479,7 @@ export default function AdminDashboardPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-30" />

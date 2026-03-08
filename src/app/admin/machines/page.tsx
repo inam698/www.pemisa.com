@@ -619,7 +619,7 @@ export default function MachinesPage() {
       )}
 
       {/* Tab Switcher */}
-      <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit">
+      <div className="flex gap-1 bg-muted p-1 rounded-lg w-full sm:w-fit overflow-x-auto">
         <button
           onClick={() => setTab("monitoring")}
           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -681,7 +681,7 @@ export default function MachinesPage() {
               Real-time oil levels, temperature, and connectivity
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             {filteredMonitoringMachines.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Cpu className="h-12 w-12 mx-auto mb-3 opacity-30" />
@@ -798,7 +798,7 @@ export default function MachinesPage() {
                 Oil capacity and remaining levels for all machines
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               {inventory.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Fuel className="h-12 w-12 mx-auto mb-3 opacity-30" />
@@ -937,7 +937,7 @@ export default function MachinesPage() {
                 All voucher redemptions and direct purchases
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               {transactions.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <DollarSign className="h-12 w-12 mx-auto mb-3 opacity-30" />
@@ -1019,7 +1019,7 @@ export default function MachinesPage() {
       {tab === "manage" && (
         <>
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               {isLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <Spinner size="lg" />

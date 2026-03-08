@@ -125,7 +125,7 @@ export default function BeneficiaryLookupPage() {
                   <span className="text-sm font-normal text-muted-foreground ml-2">({vouchers.length} voucher{vouchers.length !== 1 ? "s" : ""})</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

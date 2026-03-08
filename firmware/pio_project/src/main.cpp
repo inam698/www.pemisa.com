@@ -712,12 +712,20 @@ void handleBuyLitresState(char key) {
     lcd.setCursor(0, 0);
     lcd.printf("Price:K%.0f/L", salesReporting.getPricePerLitre());
     lcd.setCursor(0, 1);
-    lcd.print("Litres:_");
+    lcd.print("Litres:_ D=dot");
   }
 
   if (key >= '0' && key <= '9') {
-    if (inputBuffer.length() < 4) {
+    if (inputBuffer.length() < 5) {
       inputBuffer += key;
+      lcd.setCursor(0, 1);
+      lcd.print("Litres:" + inputBuffer + "_    ");
+    }
+  } else if (key == 'D') {
+    // D key = decimal point, only allow one
+    if (inputBuffer.indexOf('.') == -1 && inputBuffer.length() < 5) {
+      if (inputBuffer.length() == 0) inputBuffer = "0";
+      inputBuffer += '.';
       lcd.setCursor(0, 1);
       lcd.print("Litres:" + inputBuffer + "_    ");
     }
@@ -809,9 +817,15 @@ void handleDispensingState(char key) {
     lcd.printf("%-16s", progBuf);
   }
 
-  // Check if target reached
-  if (litresDispensed >= (targetLitres - FLOW_TOLERANCE)) {
+  // Check if target reached (stop early to compensate for pump overrun)
+  // Scale overrun for small volumes — cap at 20% of target so small dispensing works
+  float maxOverrunMl = targetLitres * 1000.0f * 0.20f;
+  float overrunMl = (PUMP_OVERRUN_ML < maxOverrunMl) ? PUMP_OVERRUN_ML : maxOverrunMl;
+  float overrunLitres = overrunMl / 1000.0f;
+  if (litresDispensed >= (targetLitres - overrunLitres - FLOW_TOLERANCE)) {
     stopPump();
+    delay(2000);  // settling time: count remaining pulses after pump off
+    litresDispensed = (float)pulseCount / PULSES_PER_LITRE;
     finishTransaction();
   }
 }

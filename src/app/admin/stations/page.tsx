@@ -109,12 +109,12 @@ export default function StationManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Building2 className="h-6 w-6" /> Station Management</h1>
-          <p className="text-muted-foreground">Manage distribution stations and locations</p>
+          <p className="text-muted-foreground text-sm">Manage distribution stations and locations</p>
         </div>
-        <Button onClick={() => { setForm({ stationName: "", location: "" }); setShowCreate(true); }}>
+        <Button className="self-start sm:self-auto" onClick={() => { setForm({ stationName: "", location: "" }); setShowCreate(true); }}>
           <Plus className="h-4 w-4 mr-2" /> Add Station
         </Button>
       </div>
@@ -129,7 +129,7 @@ export default function StationManagementPage() {
       </Card>
 
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
