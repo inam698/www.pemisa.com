@@ -49,12 +49,9 @@ The firmware is designed for **Arduino-compatible ESP32 boards**:
 
 ### Why Arduino?
 
-Arduino was chosen because:
 1. **Accessibility** — Arduino IDE lowers the barrier for technicians in Zambia to maintain and modify firmware
-2. **Library ecosystem** — ArduinoJson, Keypad, LiquidCrystal_I2C are battle-tested libraries with millions of downloads
-3. **Community** — Arduino's documentation and community support means this project can be maintained by anyone
-4. **Portability** — The same Arduino sketch runs on generic ESP32 dev boards AND official Arduino Nano ESP32 hardware
-5. **OTA updates** — Arduino's Update library enables remote firmware deployment to 1000+ dispensers simultaneously
+2. **Library ecosystem** — ArduinoJson, Keypad, LiquidCrystal_I2C are battle-tested with millions of downloads
+3. **Portability** — Same sketch runs on generic ESP32 dev boards AND official Arduino Nano ESP32 hardware
 
 ---
 
@@ -315,86 +312,11 @@ firmware/
 | POST | `/api/voucher/redeem` | API Key | Confirm voucher redemption |
 | POST | `/api/sales/report` | API Key | Report cash/voucher sale |
 
-### Admin API (Dashboard)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/auth/login` | Public | User login |
-| GET | `/api/admin/dashboard` | Admin | Dashboard metrics |
-| GET/POST | `/api/admin/machines` | Admin | Machine CRUD + registration |
-| GET/POST | `/api/admin/locations` | Admin | Location/fleet management |
-| GET/POST | `/api/admin/pricing` | Admin | Dynamic pricing rules |
-| POST | `/api/admin/upload-csv` | Admin | Bulk CSV voucher import |
-| GET | `/api/admin/vouchers` | Admin | Paginated voucher list |
+The admin dashboard also exposes 20+ REST endpoints for machine CRUD, fleet management, voucher import, pricing rules, and real-time monitoring — all protected by Firebase Auth with role-based access control.
 
 ---
 
-## Quick Start
-
-### Prerequisites
-
-- Node.js 18+ and npm
-- PostgreSQL (or Docker)
-- ESP32 Dev Module + Arduino IDE (for firmware)
-
-### Web Dashboard
-
-```bash
-cd pimisa-voucher-system
-npm install
-cp .env.example .env       # Edit with your DB URL
-npx prisma migrate dev
-npx prisma db seed
-npm run dev                 # http://localhost:3000
-```
-
-### ESP32 Firmware
-
-1. Install Arduino IDE libraries: **ArduinoJson** (v7+), **LiquidCrystal_I2C**, **Keypad**
-2. Select board: **ESP32 Dev Module**
-3. Register machine in Admin Dashboard → copy Device ID + API Key
-4. Edit `firmware/config.h` with your WiFi + credentials
-5. Flash via USB → device auto-connects to cloud
-
----
-
-## Project Structure
-
-```
-pimisa-voucher-system/
-├── firmware/                           # ESP32 Arduino firmware
-│   ├── config.h                        #   Device config, pins, credentials
-│   ├── main_pimisa_dispenser.ino       #   Main sketch (state machine)
-│   ├── wifi_manager.h/.cpp             #   WiFi auto-reconnect
-│   ├── api_client.h/.cpp               #   HTTPS client + retries
-│   ├── voucher_service.h/.cpp          #   Online/offline voucher verification
-│   ├── offline_voucher_cache.h/.cpp    #   NVS voucher cache
-│   ├── sales_reporting.h/.cpp          #   Sales reporting + offline queue
-│   ├── heartbeat_service.h/.cpp        #   Adaptive heartbeat + telemetry
-│   ├── nvs_storage.h/.cpp              #   Persistent flash storage
-│   └── ota_manager.h/.cpp              #   Remote firmware updates
-├── src/
-│   ├── app/
-│   │   ├── admin/                      # Admin dashboard pages
-│   │   │   ├── fleet/                  #   Fleet management
-│   │   │   ├── machines/               #   Machine monitoring
-│   │   │   ├── vouchers/               #   Voucher management
-│   │   │   └── upload/                 #   CSV bulk import
-│   │   ├── station/                    # Station operator portal
-│   │   └── api/                        # REST API routes
-│   ├── services/                       # Business logic (20 services)
-│   ├── lib/                            # Auth, DB, security, utilities
-│   └── components/                     # React UI components
-├── prisma/
-│   ├── schema.prisma                   # 13-table database schema
-│   └── migrations/                     # Version-controlled migrations
-├── docker-compose.yml                  # Docker deployment
-└── package.json
-```
-
----
-
-## Security
+## Security & Scalability
 
 | Layer | Protection |
 |-------|-----------|
@@ -402,22 +324,10 @@ pimisa-voucher-system/
 | **SSL/TLS** | Certificate-pinned HTTPS (ISRG Root X1) |
 | **OTA Integrity** | SHA-256 checksum verification before flashing |
 | **Web Auth** | Firebase Admin SDK with role-based access control |
-| **Rate Limiting** | Per-endpoint limits (login: 10/15min, API: 100/15min) |
-| **Input Validation** | Zod schemas on all API endpoints |
-| **SQL Injection** | Prisma ORM parameterized queries |
 | **Double-Spend** | Atomic database transactions for voucher redemption |
-| **Watchdog** | Hardware timer auto-resets hung firmware (60s) |
 | **Safety Caps** | Max 50L per transaction, 5-min pump timeout, no-flow detection |
 
----
-
-## Scalability Design
-
-- **1000+ dispensers** supported via adaptive heartbeat (server controls interval)
-- At 30s heartbeat × 1000 devices = ~33 requests/sec — well within Vercel limits
-- Offline queues prevent server overload during connectivity restoration
-- NVS persistence means zero data loss even during extended outages
-- OTA firmware updates can be pushed fleet-wide from the admin dashboard
+**1000+ dispensers** supported via adaptive heartbeat (30s × 1000 = ~33 req/sec). Offline queues prevent server overload. NVS persistence means zero data loss across power outages. OTA updates deploy fleet-wide from the dashboard.
 
 ---
 
@@ -430,44 +340,14 @@ pimisa-voucher-system/
 
 ---
 
-## Built With Arduino
-
-- **Arduino IDE** — Primary development environment for firmware
-- **Arduino Framework (ESP32 Core)** — `setup()` / `loop()` paradigm, WiFi, HTTPClient, Update, Preferences libraries
-- **Arduino Libraries** — ArduinoJson v7, LiquidCrystal_I2C, Keypad, Wire
-- **ESP32 Dev Module / Arduino Nano ESP32** — Arduino-compatible microcontroller
-- **Next.js 15** — React web framework for cloud dashboard
-- **TypeScript** — Type-safe frontend and backend
-- **Prisma ORM** — Database toolkit with type-safe queries
-- **PostgreSQL (Neon)** — Serverless relational database
-- **Firebase** — Authentication
-- **Vercel** — Edge deployment platform
-
----
-
-## Contest: Master of Arduino 2.0
-
-This project demonstrates what's possible when **Arduino's accessible ecosystem** meets a **real-world problem** in rural Africa.
-
-### Judging Criteria Compliance
+## Contest: Master of Arduino 2.0 — Judging Criteria
 
 | Criterion | How PIMISA Meets It |
 |-----------|--------------------|
-| **a) Creativity** | Combines Arduino IoT hardware with a cloud dashboard to solve cooking oil fraud in rural Zambia — a problem that affects thousands of vulnerable families. No existing product addresses this. |
-| **b) Precision & Neatness** | Modular firmware architecture (12 files, ~2,500 lines), consistent coding style, wiring diagram, state machine diagram, full API documentation, clean PCB-ready pin mapping. |
-| **c) Innovativeness** | Offline-first design: NVS flash caches vouchers and queues sales across power outages. Adaptive heartbeat scales to 1000+ devices. OTA updates deploy firmware remotely to an entire fleet. |
-| **d) Arduino Company Component** | Built entirely on the **Arduino Framework** (Arduino IDE + ESP32 Arduino Core). Uses 9 Arduino libraries. Hardware-compatible with **Arduino Nano ESP32** (ABX00083) — an official Arduino company product. The `.ino` sketch, `setup()`/`loop()` paradigm, and Arduino Board Manager are the foundation of the entire system. |
-
-### Arduino Company Component (§2 Compliance)
-
-The contest rules (§4.3.d) require that the project *"must include a component of the Arduino company."* PIMISA satisfies this through:
-
-1. **Arduino Framework** — The entire firmware is built on Arduino's programming framework (`setup()`, `loop()`, `.ino` sketch file)
-2. **Arduino IDE** — Primary development environment, using Arduino Board Manager for ESP32 core installation
-3. **Arduino Nano ESP32 (ABX00083)** — Official Arduino hardware, fully compatible and tested as a drop-in replacement for the ESP32 Dev Module
-4. **9 Arduino Libraries** — Wire, LiquidCrystal_I2C, Keypad, ArduinoJson, WiFi, HTTPClient, WiFiClientSecure, Update, Preferences
-
-Arduino's framework makes it possible for local technicians — who may not have formal programming training — to maintain, debug, and extend the dispenser firmware. The Arduino IDE's simplicity, combined with the vast library ecosystem, means this project is not locked behind proprietary tools or expensive development environments.
+| **a) Creativity** | Arduino IoT hardware + cloud dashboard solving cooking oil fraud in rural Zambia — no existing product addresses this. |
+| **b) Precision & Neatness** | Modular firmware (12 files, ~2,500 lines), wiring diagram, state machine diagram, full API docs, clean PCB-ready pin mapping. |
+| **c) Innovativeness** | Offline-first: NVS flash caches vouchers and queues sales across power outages. Adaptive heartbeat scales to 1000+ devices. OTA deploys firmware remotely. |
+| **d) Arduino Component** | Built on **Arduino Framework** (IDE + ESP32 Core). Uses 9 Arduino libraries. Compatible with **Arduino Nano ESP32** (ABX00083) — official Arduino hardware. `.ino` sketch, `setup()`/`loop()`, and Board Manager are the foundation. |
 
 **Arduino enables impact at scale**: one sketch, one framework, 1000+ oil dispensers, serving communities that need it most.
 
