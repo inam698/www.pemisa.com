@@ -408,6 +408,8 @@ export default function FleetPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                id="search-locations"
+                name="search-locations"
                 placeholder="Search locations..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -632,16 +634,20 @@ export default function FleetPage() {
               </DialogHeader>
               <div className="space-y-3">
                 <div>
-                  <Label>Name *</Label>
+                  <Label htmlFor="loc-name">Name *</Label>
                   <Input
+                    id="loc-name"
+                    name="loc-name"
                     value={locationForm.name}
                     onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })}
                     placeholder="Nairobi Depot"
                   />
                 </div>
                 <div>
-                  <Label>Address</Label>
+                  <Label htmlFor="loc-address">Address</Label>
                   <Input
+                    id="loc-address"
+                    name="loc-address"
                     value={locationForm.address}
                     onChange={(e) => setLocationForm({ ...locationForm, address: e.target.value })}
                     placeholder="123 Industrial Area"
@@ -649,16 +655,20 @@ export default function FleetPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>City</Label>
+                    <Label htmlFor="loc-city">City</Label>
                     <Input
+                      id="loc-city"
+                      name="loc-city"
                       value={locationForm.city}
                       onChange={(e) => setLocationForm({ ...locationForm, city: e.target.value })}
                       placeholder="Nairobi"
                     />
                   </div>
                   <div>
-                    <Label>Region</Label>
+                    <Label htmlFor="loc-region">Region</Label>
                     <Input
+                      id="loc-region"
+                      name="loc-region"
                       value={locationForm.region}
                       onChange={(e) => setLocationForm({ ...locationForm, region: e.target.value })}
                       placeholder="Nairobi County"
@@ -667,8 +677,10 @@ export default function FleetPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>Latitude</Label>
+                    <Label htmlFor="loc-latitude">Latitude</Label>
                     <Input
+                      id="loc-latitude"
+                      name="loc-latitude"
                       type="number"
                       step="any"
                       value={locationForm.latitude}
@@ -677,8 +689,10 @@ export default function FleetPage() {
                     />
                   </div>
                   <div>
-                    <Label>Longitude</Label>
+                    <Label htmlFor="loc-longitude">Longitude</Label>
                     <Input
+                      id="loc-longitude"
+                      name="loc-longitude"
                       type="number"
                       step="any"
                       value={locationForm.longitude}
@@ -755,8 +769,10 @@ export default function FleetPage() {
               </DialogHeader>
               <div className="space-y-3">
                 <div>
-                  <Label>Machine *</Label>
+                  <Label htmlFor="pricing-machine">Machine *</Label>
                   <select
+                    id="pricing-machine"
+                    name="pricing-machine"
                     className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                     value={pricingForm.machineId}
                     onChange={(e) => setPricingForm({ ...pricingForm, machineId: e.target.value })}
@@ -770,8 +786,10 @@ export default function FleetPage() {
                   </select>
                 </div>
                 <div>
-                  <Label>Price per Litre (KSh) *</Label>
+                  <Label htmlFor="pricing-price">Price per Litre (KSh) *</Label>
                   <Input
+                    id="pricing-price"
+                    name="pricing-price"
                     type="number"
                     step="0.01"
                     value={pricingForm.pricePerLitre}
@@ -781,16 +799,20 @@ export default function FleetPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>Start Date *</Label>
+                    <Label htmlFor="pricing-start">Start Date *</Label>
                     <Input
+                      id="pricing-start"
+                      name="pricing-start"
                       type="datetime-local"
                       value={pricingForm.startTime}
                       onChange={(e) => setPricingForm({ ...pricingForm, startTime: e.target.value })}
                     />
                   </div>
                   <div>
-                    <Label>End Date *</Label>
+                    <Label htmlFor="pricing-end">End Date *</Label>
                     <Input
+                      id="pricing-end"
+                      name="pricing-end"
                       type="datetime-local"
                       value={pricingForm.endTime}
                       onChange={(e) => setPricingForm({ ...pricingForm, endTime: e.target.value })}
