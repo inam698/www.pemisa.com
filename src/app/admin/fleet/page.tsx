@@ -135,7 +135,9 @@ export default function FleetPage() {
       if (pricingRes.success) setPricingRules(pricingRes.data);
       if (machinesRes.success) setAllMachines(machinesRes.data);
     } catch (err) {
-      addToast({ title: "Error", description: "Failed to load fleet data", variant: "destructive" });
+      const msg = err instanceof Error ? err.message : "Failed to load fleet data";
+      addToast({ title: "Error", description: msg, variant: "destructive" });
+      console.error("Fleet data fetch error:", err);
     } finally {
       setLoading(false);
     }

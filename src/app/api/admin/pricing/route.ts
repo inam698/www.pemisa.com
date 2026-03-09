@@ -24,7 +24,7 @@ async function getHandler(request: NextRequest, user: JwtPayload) {
   } catch (error) {
     console.error("List pricing rules error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch pricing rules" },
+      { success: false, error: "Failed to fetch pricing rules", detail: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

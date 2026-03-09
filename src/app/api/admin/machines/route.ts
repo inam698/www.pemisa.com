@@ -27,7 +27,7 @@ async function getHandler(request: NextRequest, user: JwtPayload) {
   } catch (error) {
     console.error("List machines error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch machines" },
+      { success: false, error: "Failed to fetch machines", detail: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
