@@ -232,8 +232,8 @@ void setup() {
                 pricePerLitre, heartbeatIntervalMs, configVersion);
   #endif
 
-  voucherService.begin(&apiClient, DEVICE_ID);
-  salesReporting.begin(&apiClient, DEVICE_ID, pricePerLitre);
+  voucherService.begin(&apiClient, DEVICE_ID, &nvsStorage);
+  salesReporting.begin(&apiClient, DEVICE_ID, pricePerLitre, &nvsStorage);
   heartbeatService.begin(&apiClient, DEVICE_ID, heartbeatIntervalMs);
 
   // Send initial heartbeat
@@ -272,6 +272,7 @@ void loop() {
   if (wifiManager.isConnected()) {
     heartbeatService.loop();
     salesReporting.processOfflineQueue();
+    voucherService.processOfflineRedemptions();
 
     // Upload NVS-persisted offline sales (survived power outage)
     #if NVS_ENABLED
@@ -361,13 +362,19 @@ void handleIdleState(char key) {
     // Show connection status
     if (wifiManager.isConnected()) {
       uint8_t queued = salesReporting.getQueuedCount();
-      if (queued > 0) {
-        lcd.printf("Online Q:%d  #=Go", queued);
+      int pendingRedeem = voucherService.getPendingRedemptionCount();
+      if (queued > 0 || pendingRedeem > 0) {
+        lcd.printf("Online Q:%d  #=Go", queued + pendingRedeem);
       } else {
         lcd.print("Online     #=Go");
       }
     } else {
-      lcd.print("Offline    #=Go");
+      int cached = voucherService.getCachedVoucherCount();
+      if (cached > 0) {
+        lcd.printf("Offline C:%d#=Go", cached);
+      } else {
+        lcd.print("Offline    #=Go");
+      }
     }
   }
 
@@ -389,12 +396,7 @@ void handleSelectModeState(char key) {
   }
 
   if (key == 'A') {
-    // Voucher mode requires WiFi
-    if (!wifiManager.isConnected()) {
-      errorMessage = "No WiFi for vou-";
-      changeState(STATE_ERROR);
-      return;
-    }
+    // Voucher mode — works online AND offline (with cached vouchers)
     inputBuffer = "";
     phoneNumber = "";
     changeState(STATE_VOUCHER_PHONE);
@@ -502,12 +504,19 @@ void handleVoucherCodeState(char key) {
         // Show beneficiary name + litres on LCD
         lcd.clear();
         lcd.setCursor(0, 0);
-        String ownerLine = result.beneficiaryName;
-        if (ownerLine.length() > 16) ownerLine = ownerLine.substring(0, 16);
-        if (ownerLine.length() > 0) {
-          lcd.print(ownerLine);
+        if (result.offlineVerified) {
+          // Indicate offline verification to operator
+          String offlineLine = "[OFF] ";
+          offlineLine += String(result.litres, 1) + "L";
+          lcd.print(offlineLine);
         } else {
-          lcd.print("Voucher Approved");
+          String ownerLine = result.beneficiaryName;
+          if (ownerLine.length() > 16) ownerLine = ownerLine.substring(0, 16);
+          if (ownerLine.length() > 0) {
+            lcd.print(ownerLine);
+          } else {
+            lcd.print("Voucher Approved");
+          }
         }
         lcd.setCursor(0, 1);
         lcd.printf("%.2fL K%.0f #=Go", result.litres, result.amount);
@@ -805,6 +814,12 @@ void finishTransaction() {
   if (transactionType == "voucher" && voucherCode.length() > 0) {
     heartbeatService.setLastVoucher(voucherCode);
   }
+
+  // ── Persist to NVS (survives power outage) ──────────────────────
+  #if NVS_ENABLED
+  nvsStorage.addDispensedLitres(litresDispensed);
+  nvsStorage.incrementPumpCycles();
+  #endif
 
   // ── Log unified transaction (updates inventory on server) ───────
   float oilMl = litresDispensed * 1000.0f;

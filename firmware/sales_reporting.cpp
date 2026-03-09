@@ -13,8 +13,10 @@
 
 // ─── Public Methods ─────────────────────────────────────────────
 
-void SalesReporting::begin(ApiClient* apiClient, const char* deviceId, float pricePerLitre) {
+void SalesReporting::begin(ApiClient* apiClient, const char* deviceId, float pricePerLitre,
+                           NvsStorage* nvsStorage) {
   _api = apiClient;
+  _nvs = nvsStorage;
   _deviceId = String(deviceId);
   _pricePerLitre = pricePerLitre;
   _queueHead = 0;
@@ -43,6 +45,20 @@ bool SalesReporting::reportCashSale(float litres, float amountPaid) {
 
   // Queue for offline retry
   _enqueue(sale);
+
+  // Also persist to NVS flash (survives power outage)
+  if (_nvs) {
+    OfflineSale nvsSale;
+    nvsSale.litres = sale.litres;
+    nvsSale.amount = sale.amount;
+    strncpy(nvsSale.paymentType, "cash", sizeof(nvsSale.paymentType) - 1);
+    nvsSale.paymentType[sizeof(nvsSale.paymentType) - 1] = '\0';
+    nvsSale.voucherCode[0] = '\0';
+    nvsSale.phone[0] = '\0';
+    nvsSale.timestamp = millis() / 1000;
+    _nvs->pushOfflineSale(nvsSale);
+  }
+
   Serial.printf("[Sales] Cash sale queued for retry (queue: %d/%d)\n",
                 _queueCount, OFFLINE_QUEUE_SIZE);
   return true; // Return true — sale is queued, dispensing should continue
@@ -70,6 +86,22 @@ bool SalesReporting::reportVoucherSale(float litres, float amount,
 
   // Queue for offline retry
   _enqueue(sale);
+
+  // Also persist to NVS flash (survives power outage)
+  if (_nvs) {
+    OfflineSale nvsSale;
+    nvsSale.litres = sale.litres;
+    nvsSale.amount = sale.amount;
+    strncpy(nvsSale.paymentType, "voucher", sizeof(nvsSale.paymentType) - 1);
+    nvsSale.paymentType[sizeof(nvsSale.paymentType) - 1] = '\0';
+    strncpy(nvsSale.voucherCode, voucherCode, sizeof(nvsSale.voucherCode) - 1);
+    nvsSale.voucherCode[sizeof(nvsSale.voucherCode) - 1] = '\0';
+    strncpy(nvsSale.phone, phone, sizeof(nvsSale.phone) - 1);
+    nvsSale.phone[sizeof(nvsSale.phone) - 1] = '\0';
+    nvsSale.timestamp = millis() / 1000;
+    _nvs->pushOfflineSale(nvsSale);
+  }
+
   Serial.printf("[Sales] Voucher sale queued for retry (queue: %d/%d)\n",
                 _queueCount, OFFLINE_QUEUE_SIZE);
   return true;
