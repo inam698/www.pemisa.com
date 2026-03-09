@@ -28,10 +28,10 @@
 #define API_RETRY_DELAY_MS  2000   // Base delay between retries
 
 // ─── Device Credentials (from admin dashboard) ──────────────────
-// These are generated when you register a machine in the dashboard.
-// Navigate to Admin > Machines > Register Machine to obtain them.
-#define DEVICE_ID           "DISP-LSK-001"
-#define API_KEY             "pimisa_9c9c78160941a342189fbfa95f507e619add19572343028a"
+// Machine: Oil Dispenser
+// Generated: 3/9/2026
+#define DEVICE_ID           "DISP-2231-54AC"
+#define API_KEY             "pimisa_37c05c163f78f0817c43a30a32daaf86fcf2208c8bd08b3740f825f2063f8894"
 
 // ─── Hardware Pins ──────────────────────────────────────────────
 #define FLOW_SENSOR_PIN     4      // Flow sensor signal pin (interrupt-capable)
