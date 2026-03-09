@@ -356,3 +356,61 @@ export interface MachineInventory {
   oilRemainingLitres: number;
   oilRemainingPercent: number;
 }
+
+// ─── Fleet / Location Types ─────────────────────────────────────
+
+export interface LocationData {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  region: string;
+  latitude: number | null;
+  longitude: number | null;
+  machineCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FleetOverview {
+  totalLocations: number;
+  totalMachines: number;
+  onlineMachines: number;
+  offlineMachines: number;
+  lowOilMachines: number;
+  locations: LocationData[];
+}
+
+// ─── Dynamic Pricing Types ──────────────────────────────────────
+
+export interface PricingRuleData {
+  id: string;
+  machineId: string;
+  pricePerLitre: number;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CurrentPriceResponse {
+  deviceId: string;
+  pricePerLitre: number;
+  source: "rule" | "default";
+  ruleId?: string;
+}
+
+// ─── Device Firmware Check Types ────────────────────────────────
+
+export interface DeviceFirmwareCheckRequest {
+  device_id: string;
+  current_version: string;
+}
+
+export interface DeviceFirmwareCheckResponse {
+  update_available: boolean;
+  version?: string;
+  url?: string | null;
+  checksum?: string | null;
+  release_notes?: string | null;
+}

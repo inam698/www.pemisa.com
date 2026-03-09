@@ -1086,50 +1086,110 @@ export default function MachinesPage() {
       {/* Register Machine Dialog */}
       <Dialog open={showCreate} onClose={() => { setShowCreate(false); setNewMachine(null); }}>
         <DialogHeader>
-          <DialogTitle>{newMachine ? "Machine Credentials" : "Register New Machine"}</DialogTitle>
+          <DialogTitle>{newMachine ? "Machine Registered — Credentials" : "Register New Machine"}</DialogTitle>
         </DialogHeader>
 
         {newMachine ? (
           <div className="space-y-4">
+            {/* Warning banner */}
             <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
-                ⚠️ Save these credentials now. The API key will not be shown again.
-              </p>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Machine Name</Label>
-                <p className="font-medium">{newMachine.name}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Device ID</Label>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono">{newMachine.deviceId}</code>
-                  <Button size="sm" variant="outline" onClick={() => copyToClipboard(newMachine.deviceId, "Device ID")}>
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">API Key</Label>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-muted px-3 py-2 rounded text-xs font-mono break-all">{newMachine.apiKey}</code>
-                  <Button size="sm" variant="outline" onClick={() => copyToClipboard(newMachine.apiKey, "API Key")}>
-                    <Copy className="h-4 w-4" />
-                  </Button>
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    Save these credentials now!
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                    The API Key is shown only once and cannot be recovered. Copy the full config below and paste it into your ESP32 firmware.
+                  </p>
                 </div>
               </div>
             </div>
-            <div className="bg-muted rounded-lg p-3">
-              <p className="text-xs text-muted-foreground">
-                Flash these into your ESP32 firmware config.h:
-              </p>
-              <pre className="text-xs mt-1 font-mono whitespace-pre-wrap">
-{`#define DEVICE_ID "${newMachine.deviceId}"
-#define API_KEY   "${newMachine.apiKey}"`}
+
+            {/* Quick info */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">Machine Name</p>
+                <p className="font-semibold text-sm mt-0.5">{newMachine.name}</p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">Device ID</p>
+                <p className="font-mono font-semibold text-sm mt-0.5">{newMachine.deviceId}</p>
+              </div>
+            </div>
+
+            {/* Device ID */}
+            <div>
+              <Label className="text-xs text-muted-foreground">Device ID</Label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono">{newMachine.deviceId}</code>
+                <Button size="sm" variant="outline" onClick={() => copyToClipboard(newMachine.deviceId, "Device ID")}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* API Key */}
+            <div>
+              <Label className="text-xs text-muted-foreground">API Key</Label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-muted px-3 py-2 rounded text-xs font-mono break-all">{newMachine.apiKey}</code>
+                <Button size="sm" variant="outline" onClick={() => copyToClipboard(newMachine.apiKey, "API Key")}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Full config.h block */}
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between bg-muted px-3 py-2">
+                <span className="text-xs font-medium text-muted-foreground">config.h — Paste into firmware</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => copyToClipboard(
+`// ─── Device Credentials (auto-generated) ────────────────────
+// Machine: ${newMachine.name}
+// Generated: ${new Date().toLocaleDateString()}
+#define DEVICE_ID           "${newMachine.deviceId}"
+#define API_KEY             "${newMachine.apiKey}"
+
+// ─── Pimisa Cloud Server ────────────────────────────────────
+#define SERVER_BASE_URL     "https://pimisa-voucher-system.vercel.app"`,
+                    "Full Config"
+                  )}
+                >
+                  <Copy className="h-3 w-3" /> Copy Config
+                </Button>
+              </div>
+              <pre className="p-3 text-xs font-mono bg-zinc-950 text-green-400 overflow-x-auto whitespace-pre leading-relaxed">
+{`// ─── Device Credentials (auto-generated) ────────────────────
+// Machine: ${newMachine.name}
+// Generated: ${new Date().toLocaleDateString()}
+#define DEVICE_ID           "${newMachine.deviceId}"
+#define API_KEY             "${newMachine.apiKey}"
+
+// ─── Pimisa Cloud Server ────────────────────────────────────
+#define SERVER_BASE_URL     "https://pimisa-voucher-system.vercel.app"`}
               </pre>
             </div>
-            <Button className="w-full" onClick={() => { setShowCreate(false); setNewMachine(null); }}>I&apos;ve Saved the Credentials</Button>
+
+            {/* Steps */}
+            <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+              <p className="text-xs font-semibold text-blue-800 dark:text-blue-200 mb-2">Quick Setup Steps:</p>
+              <ol className="text-xs text-blue-700 dark:text-blue-300 space-y-1 list-decimal list-inside">
+                <li>Click <strong>Copy Config</strong> above</li>
+                <li>Open <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">firmware/config.h</code> in your project</li>
+                <li>Replace the <strong>Device Credentials</strong> section with the copied config</li>
+                <li>Flash the firmware to the ESP32</li>
+                <li>Power on — the dispenser will connect automatically</li>
+              </ol>
+            </div>
+
+            <Button className="w-full" onClick={() => { setShowCreate(false); setNewMachine(null); }}>
+              I&apos;ve Saved the Credentials
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">

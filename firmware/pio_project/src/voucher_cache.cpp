@@ -57,7 +57,13 @@ bool VoucherCache::refresh() {
   }
 
   // Parse JSON response
-  // Use a filter to reduce memory usage during parsing
+  // Check heap before allocating large JSON document
+  size_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < 50000) {
+    Serial.printf("[VCache] Low heap (%d bytes), skipping cache refresh\n", freeHeap);
+    return false;
+  }
+
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, response.body);
 
@@ -132,6 +138,13 @@ OfflineVoucherResult VoucherCache::verifyOffline(const char* phone,
 
   if (_cacheCount == 0) {
     result.message = "No cached data";
+    return result;
+  }
+
+  // Reject if cache is older than 24 hours (vouchers may have expired)
+  if (getSecondsSinceRefresh() > 86400) {
+    result.message = "Cache expired";
+    Serial.println("[VCache] OFFLINE REJECT: cache older than 24h");
     return result;
   }
 

@@ -186,6 +186,50 @@ export const machineRefillSchema = z.object({
   litres: z.number().positive("Refill amount must be positive"),
 });
 
+// ─── Location / Fleet Validators ────────────────────────────────
+
+export const locationCreateSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100),
+  address: z.string().max(255).default(""),
+  city: z.string().max(100).default(""),
+  region: z.string().max(100).default(""),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+});
+
+export const locationUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  address: z.string().max(255).optional(),
+  city: z.string().max(100).optional(),
+  region: z.string().max(100).optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+});
+
+// ─── Pricing Rule Validators ────────────────────────────────────
+
+export const pricingRuleCreateSchema = z.object({
+  machineId: z.string().min(1, "Machine ID is required"),
+  pricePerLitre: z.number().positive("Price must be positive"),
+  startTime: z.string().refine((v) => !isNaN(Date.parse(v)), "Invalid start date"),
+  endTime: z.string().refine((v) => !isNaN(Date.parse(v)), "Invalid end date"),
+  isActive: z.boolean().default(true),
+});
+
+export const pricingRuleUpdateSchema = z.object({
+  pricePerLitre: z.number().positive().optional(),
+  startTime: z.string().refine((v) => !isNaN(Date.parse(v)), "Invalid start date").optional(),
+  endTime: z.string().refine((v) => !isNaN(Date.parse(v)), "Invalid end date").optional(),
+  isActive: z.boolean().optional(),
+});
+
+// ─── Device Firmware Check ──────────────────────────────────────
+
+export const deviceFirmwareCheckSchema = z.object({
+  device_id: z.string().min(1, "Device ID is required"),
+  current_version: z.string().min(1, "Current firmware version is required"),
+});
+
 export type DeviceVoucherVerifyInput = z.infer<typeof deviceVoucherVerifySchema>;
 export type DeviceVoucherRedeemInput = z.infer<typeof deviceVoucherRedeemSchema>;
 export type DeviceSalesReportInput = z.infer<typeof deviceSalesReportSchema>;
@@ -198,3 +242,8 @@ export type FirmwareReleaseInput = z.infer<typeof firmwareReleaseSchema>;
 export type OtaPushInput = z.infer<typeof otaPushSchema>;
 export type DeviceTransactionLogInput = z.infer<typeof deviceTransactionLogSchema>;
 export type MachineRefillInput = z.infer<typeof machineRefillSchema>;
+export type LocationCreateInput = z.infer<typeof locationCreateSchema>;
+export type LocationUpdateInput = z.infer<typeof locationUpdateSchema>;
+export type PricingRuleCreateInput = z.infer<typeof pricingRuleCreateSchema>;
+export type PricingRuleUpdateInput = z.infer<typeof pricingRuleUpdateSchema>;
+export type DeviceFirmwareCheckInput = z.infer<typeof deviceFirmwareCheckSchema>;

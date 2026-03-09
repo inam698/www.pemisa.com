@@ -31,6 +31,7 @@ import {
   Settings,
   Cpu,
   ShoppingCart,
+  MapPin,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -76,6 +77,11 @@ const navItems = [
     href: "/admin/machines",
     label: "Machines",
     icon: Cpu,
+  },
+  {
+    href: "/admin/fleet",
+    label: "Fleet",
+    icon: MapPin,
   },
   {
     href: "/admin/sales",

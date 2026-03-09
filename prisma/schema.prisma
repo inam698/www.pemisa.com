@@ -184,18 +184,22 @@ model Machine {
   oilCapacityLitres  Float     @default(5000) @map("oil_capacity_litres")
   oilRemainingLitres Float     @default(5000) @map("oil_remaining_litres")
   totalDispensed    Float     @default(0) @map("total_dispensed")
+  locationId        String?   @map("location_id")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   station      Station?           @relation(fields: [stationId], references: [id])
   organization Organization?      @relation(fields: [organizationId], references: [id])
+  locationRef  Location?          @relation(fields: [locationId], references: [id])
   sales        Sale[]
   telemetry    MachineTelemetry[]
   transactions Transaction[]
+  pricingRules PricingRule[]
 
   @@index([deviceId])
   @@index([stationId])
   @@index([organizationId])
+  @@index([locationId])
   @@index([status])
   @@index([lastSeen])
   @@index([status, lastSeen])
@@ -286,4 +290,40 @@ model FirmwareRelease {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("firmware_releases")
+}
+
+// --- Locations (Fleet Management) ---
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String
+  address   String   @default("")
+  city      String   @default("")
+  region    String   @default("")
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  machines  Machine[]
+
+  @@map("locations")
+}
+
+// --- Dynamic Pricing Rules ---
+
+model PricingRule {
+  id           String    @id @default(cuid())
+  machineId    String    @map("machine_id")
+  pricePerLitre Float    @map("price_per_litre")
+  startTime    DateTime  @map("start_time")
+  endTime      DateTime  @map("end_time")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  machine Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@index([machineId, isActive])
+  @@index([startTime, endTime])
+  @@map("pricing_rules")
 }

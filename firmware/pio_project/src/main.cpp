@@ -358,18 +358,20 @@ void loop() {
     heartbeatService.loop();
     salesReporting.processOfflineQueue();
 
-    // Clear locally-used tracking when back online (server is source of truth)
-    if (voucherCache.getLocallyUsedCount() > 0) {
-      voucherCache.clearLocallyUsed();
-    }
-
     // Upload NVS-persisted offline sales (survived power outage)
+    // Must happen BEFORE clearing locally-used tracking to prevent double-spend
     #if NVS_ENABLED
     if (millis() - lastNvsUploadMs > NVS_OFFLINE_RETRY_MS) {
       lastNvsUploadMs = millis();
       uploadNvsSales();
     }
     #endif
+
+    // Clear locally-used tracking only after NVS sales have been uploaded
+    // (server is source of truth once it has processed the redemptions)
+    if (voucherCache.getLocallyUsedCount() > 0 && nvsStorage.getOfflineSaleCount() == 0) {
+      voucherCache.clearLocallyUsed();
+    }
   }
 
   #if HARDWARE_ATTACHED
@@ -620,9 +622,14 @@ void handleVoucherCodeState(char key) {
           char volBuf[10];
           formatVolume(volBuf, sizeof(volBuf), result.litres);
           lcd.printf("%s K%.0f #=Go", volBuf, result.amount);
-        } else if (result.message == "Server error" && voucherCache.hasCachedVouchers()) {
-          // Server unreachable but we have cache — try offline
-          Serial.println("[Voucher] Server unreachable, trying offline cache...");
+        } else if (voucherCache.hasCachedVouchers() &&
+                   (result.message == "Server error" ||
+                    result.message.indexOf("timeout") >= 0 ||
+                    result.message.indexOf("connect") >= 0 ||
+                    result.litres == 0)) {
+          // Server unreachable/error but we have cache — try offline
+          Serial.printf("[Voucher] Server failed (%s), trying offline cache...\n",
+                        result.message.c_str());
         } else {
           errorMessage = result.message;
           if (errorMessage.length() > 16) {
