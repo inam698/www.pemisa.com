@@ -449,6 +449,24 @@ pimisa-voucher-system/
 
 This project demonstrates what's possible when **Arduino's accessible ecosystem** meets a **real-world problem** in rural Africa.
 
+### Judging Criteria Compliance
+
+| Criterion | How PIMISA Meets It |
+|-----------|--------------------|
+| **a) Creativity** | Combines Arduino IoT hardware with a cloud dashboard to solve cooking oil fraud in rural Zambia — a problem that affects thousands of vulnerable families. No existing product addresses this. |
+| **b) Precision & Neatness** | Modular firmware architecture (12 files, ~2,500 lines), consistent coding style, wiring diagram, state machine diagram, full API documentation, clean PCB-ready pin mapping. |
+| **c) Innovativeness** | Offline-first design: NVS flash caches vouchers and queues sales across power outages. Adaptive heartbeat scales to 1000+ devices. OTA updates deploy firmware remotely to an entire fleet. |
+| **d) Arduino Company Component** | Built entirely on the **Arduino Framework** (Arduino IDE + ESP32 Arduino Core). Uses 9 Arduino libraries. Hardware-compatible with **Arduino Nano ESP32** (ABX00083) — an official Arduino company product. The `.ino` sketch, `setup()`/`loop()` paradigm, and Arduino Board Manager are the foundation of the entire system. |
+
+### Arduino Company Component (§2 Compliance)
+
+The contest rules (§4.3.d) require that the project *"must include a component of the Arduino company."* PIMISA satisfies this through:
+
+1. **Arduino Framework** — The entire firmware is built on Arduino's programming framework (`setup()`, `loop()`, `.ino` sketch file)
+2. **Arduino IDE** — Primary development environment, using Arduino Board Manager for ESP32 core installation
+3. **Arduino Nano ESP32 (ABX00083)** — Official Arduino hardware, fully compatible and tested as a drop-in replacement for the ESP32 Dev Module
+4. **9 Arduino Libraries** — Wire, LiquidCrystal_I2C, Keypad, ArduinoJson, WiFi, HTTPClient, WiFiClientSecure, Update, Preferences
+
 Arduino's framework makes it possible for local technicians — who may not have formal programming training — to maintain, debug, and extend the dispenser firmware. The Arduino IDE's simplicity, combined with the vast library ecosystem, means this project is not locked behind proprietary tools or expensive development environments.
 
 **Arduino enables impact at scale**: one sketch, one framework, 1000+ oil dispensers, serving communities that need it most.
@@ -457,7 +475,9 @@ Arduino's framework makes it possible for local technicians — who may not have
 
 ## Author
 
-**Emmanuel Inambo** — Zambia
+**Emmanuel Inambo** — Zambia  
+Contest: Master of Arduino 2.0 (February–May 2026)  
+Website: [techmasterevent.com](https://techmasterevent.com)
 
 ---
 
