@@ -1,11 +1,60 @@
 # PIMISA - IoT Cooking Oil Dispenser System
 
-> **Full-stack IoT platform**: ESP32 firmware + cloud dashboard for automated cooking oil vending across Zambia. Supports 1000+ dispensers with offline-first architecture.
+### Master of Arduino 2.0 Contest Entry
+
+> **Full-stack Arduino IoT platform**: Arduino-powered ESP32 firmware + cloud dashboard for automated cooking oil vending across rural Zambia. Supports 1000+ dispensers with offline-first architecture — because people still need cooking oil when the internet goes down.
 
 [![Live Demo](https://img.shields.io/badge/Live-pimisa--voucher--system.vercel.app-brightgreen)](https://pimisa-voucher-system.vercel.app)
+[![Arduino](https://img.shields.io/badge/Arduino-Framework%20%2B%20IDE-00979D?logo=arduino&logoColor=white)]()
 [![GitHub](https://img.shields.io/badge/GitHub-inam698-blue)](https://github.com/inam698/www.pemisa.com)
-[![Firmware](https://img.shields.io/badge/ESP32-Arduino_Firmware-orange)]()
-[![License](https://img.shields.io/badge/License-Proprietary-red)]()
+[![Firmware](https://img.shields.io/badge/ESP32-Arduino_C++-orange)]()
+
+---
+
+## Arduino Component (Contest Requirement)
+
+**Arduino is the foundation of this entire IoT system.** Every dispenser runs firmware built entirely within the Arduino ecosystem:
+
+### Arduino Framework & IDE
+
+The entire 2,500+ line firmware is written in **Arduino C++** using the standard Arduino programming paradigm:
+
+- **`setup()`** — Hardware initialization, WiFi connection, service bootstrap
+- **`loop()`** — Main state machine, sensor reading, heartbeat scheduling
+- **`.ino` sketch file** — `main_pimisa_dispenser.ino` is the entry point, compiled through the **Arduino IDE** (or Arduino-compatible PlatformIO)
+- **Arduino Board Manager** — ESP32 support installed via Espressif's official Arduino core (`esp32` by Espressif Systems in Arduino Board Manager)
+
+### Arduino Libraries Used
+
+| Arduino Library | Purpose in PIMISA |
+|----------------|-------------------|
+| **Wire.h** | I2C communication bus for the 16×2 LCD display |
+| **LiquidCrystal_I2C** | Character LCD driver — displays menus, flow progress, status messages |
+| **Keypad** (Mark Stanley & Alexander Brevig) | 4×4 matrix keypad scanning — user input for voucher codes, amounts |
+| **ArduinoJson** v7 (Benoît Blanchon) | JSON serialization/deserialization for all cloud API communication |
+| **WiFi.h** (Arduino ESP32 Core) | WiFi station mode with auto-reconnect and network scanning |
+| **HTTPClient.h** (Arduino ESP32 Core) | HTTP/HTTPS client for REST API calls to cloud server |
+| **WiFiClientSecure.h** (Arduino ESP32 Core) | TLS/SSL encrypted connections with certificate pinning |
+| **Update.h** (Arduino ESP32 Core) | Over-The-Air (OTA) firmware updates — remote fleet-wide deployment |
+| **Preferences.h** (Arduino ESP32 Core) | Non-Volatile Storage (NVS) wrapper — offline data persists across power outages |
+
+### Arduino-Compatible Hardware
+
+The firmware is designed for **Arduino-compatible ESP32 boards**:
+
+- **ESP32 Dev Module** (primary development board)
+- **Arduino Nano ESP32** (official Arduino product — ABX00083 — drop-in compatible)
+- **Arduino Nano ESP32-S3** (official Arduino product — fully supported)
+- Any ESP32 board supported by the Arduino Board Manager
+
+### Why Arduino?
+
+Arduino was chosen because:
+1. **Accessibility** — Arduino IDE lowers the barrier for technicians in Zambia to maintain and modify firmware
+2. **Library ecosystem** — ArduinoJson, Keypad, LiquidCrystal_I2C are battle-tested libraries with millions of downloads
+3. **Community** — Arduino's documentation and community support means this project can be maintained by anyone
+4. **Portability** — The same Arduino sketch runs on generic ESP32 dev boards AND official Arduino Nano ESP32 hardware
+5. **OTA updates** — Arduino's Update library enables remote firmware deployment to 1000+ dispensers simultaneously
 
 ---
 
@@ -15,9 +64,9 @@ In rural Zambia, cooking oil distribution to vulnerable communities relies on pa
 
 ## The Solution
 
-**PIMISA** is an end-to-end IoT oil dispensing platform that combines:
+**PIMISA** is an end-to-end Arduino IoT oil dispensing platform that combines:
 
-1. **ESP32-powered dispensers** with flow sensors, keypads, and LCD displays
+1. **Arduino-powered ESP32 dispensers** with flow sensors, keypads, and LCD displays
 2. **Cloud-based admin dashboard** for fleet management, voucher distribution, and real-time monitoring
 3. **Offline-first architecture** — dispensers keep working without internet and sync when connectivity returns
 
@@ -70,7 +119,7 @@ In rural Zambia, cooking oil distribution to vulnerable communities relies on pa
 
 ## Key Features
 
-### ESP32 Firmware (Arduino C++)
+### Arduino ESP32 Firmware (C++)
 
 | Feature | Description |
 |---------|-------------|
@@ -104,8 +153,10 @@ In rural Zambia, cooking oil distribution to vulnerable communities relies on pa
 
 | Layer | Technology |
 |-------|-----------|
-| **Microcontroller** | ESP32 Dev Module (Dual-core 240MHz, WiFi, 4MB Flash) |
-| **Firmware** | Arduino C++, ArduinoJson v7, ESP32 NVS, mbedTLS |
+| **Arduino Framework** | Arduino IDE / PlatformIO — core development environment |
+| **Arduino Libraries** | Wire, LiquidCrystal_I2C, Keypad, ArduinoJson v7, WiFi, HTTPClient, Update, Preferences |
+| **Microcontroller** | ESP32 Dev Module / Arduino Nano ESP32 (Dual-core 240MHz, WiFi, 4MB Flash) |
+| **Firmware** | Arduino C++ (~2,500 lines), 12 source files, modular .h/.cpp architecture |
 | **Frontend** | Next.js 15, React 19, TypeScript, Tailwind CSS, ShadCN UI |
 | **Backend** | Next.js API Routes, Prisma ORM v6, REST architecture |
 | **Database** | PostgreSQL (Neon Serverless) |
@@ -379,17 +430,34 @@ pimisa-voucher-system/
 
 ---
 
-## Built With
+## Built With Arduino
 
-- **ESP32** — Espressif dual-core microcontroller
-- **Arduino Framework** — C++ firmware development
-- **Next.js 15** — React framework with App Router
+- **Arduino IDE** — Primary development environment for firmware
+- **Arduino Framework (ESP32 Core)** — `setup()` / `loop()` paradigm, WiFi, HTTPClient, Update, Preferences libraries
+- **Arduino Libraries** — ArduinoJson v7, LiquidCrystal_I2C, Keypad, Wire
+- **ESP32 Dev Module / Arduino Nano ESP32** — Arduino-compatible microcontroller
+- **Next.js 15** — React web framework for cloud dashboard
 - **TypeScript** — Type-safe frontend and backend
 - **Prisma ORM** — Database toolkit with type-safe queries
-- **PostgreSQL** — Relational database
+- **PostgreSQL (Neon)** — Serverless relational database
 - **Firebase** — Authentication
-- **Tailwind CSS** — Utility-first styling
 - **Vercel** — Edge deployment platform
+
+---
+
+## Contest: Master of Arduino 2.0
+
+This project demonstrates what's possible when **Arduino's accessible ecosystem** meets a **real-world problem** in rural Africa.
+
+Arduino's framework makes it possible for local technicians — who may not have formal programming training — to maintain, debug, and extend the dispenser firmware. The Arduino IDE's simplicity, combined with the vast library ecosystem, means this project is not locked behind proprietary tools or expensive development environments.
+
+**Arduino enables impact at scale**: one sketch, one framework, 1000+ oil dispensers, serving communities that need it most.
+
+---
+
+## Author
+
+**Emmanuel Inambo** — Zambia
 
 ---
 
