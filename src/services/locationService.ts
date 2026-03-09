@@ -129,7 +129,17 @@ export async function getFleetOverview() {
     prisma.location.findMany({
       include: {
         machines: {
-          select: { id: true, status: true, oilRemainingLitres: true, oilCapacityLitres: true },
+          select: {
+            id: true,
+            deviceId: true,
+            name: true,
+            status: true,
+            oilRemainingLitres: true,
+            oilCapacityLitres: true,
+            pricePerLitre: true,
+            lastSeen: true,
+            firmwareVersion: true,
+          },
         },
       },
       orderBy: { name: "asc" },
@@ -161,6 +171,7 @@ export async function getFleetOverview() {
       latitude: loc.latitude,
       longitude: loc.longitude,
       machineCount: loc.machines.length,
+      machines: loc.machines,
       createdAt: loc.createdAt.toISOString(),
       updatedAt: loc.updatedAt.toISOString(),
     })),
