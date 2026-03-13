@@ -376,6 +376,28 @@ The admin dashboard also exposes 20+ REST endpoints for machine CRUD, fleet mana
 
 ---
 
+## Alignment with United Nations Sustainable Development Goals (SDGs)
+
+The PIMISA IoT Cooking Oil Dispenser System contributes to several United Nations Sustainable Development Goals by improving resource distribution, reducing waste, and introducing smart infrastructure into community supply systems.
+
+**SDG 2 – Zero Hunger**
+
+The system supports food security by ensuring fair and accurate distribution of cooking oil within communities. Using automated dispensing and controlled measurements, the system guarantees that each beneficiary receives the correct allocated amount. This prevents hoarding, reduces inequality in distribution, and improves access to essential food resources.
+
+**SDG 9 – Industry, Innovation and Infrastructure**
+
+PIMISA introduces an innovative IoT-based infrastructure for resource distribution. By integrating microcontrollers, sensors, automated pumps, and digital monitoring systems, the project transforms a traditionally manual distribution process into a smart and efficient technological solution. This promotes innovation in community infrastructure and demonstrates how embedded systems can solve real-world problems.
+
+**SDG 12 – Responsible Consumption and Production**
+
+The system promotes responsible resource management by dispensing precise quantities of cooking oil and recording usage data. This reduces waste, improves transparency in supply chains, and ensures that limited resources are used efficiently and sustainably.
+
+**SDG 11 – Sustainable Cities and Communities**
+
+PIMISA contributes to the development of smarter and more organized communities by introducing a digital distribution platform that improves resource management. The system enables better monitoring, accountability, and planning for community supply programs.
+
+Overall, the project demonstrates how IoT and embedded systems engineering can support sustainable development and improve community resource distribution.
+
 ## Author
 
 **Emmanuel Inambo** — Zambia  
