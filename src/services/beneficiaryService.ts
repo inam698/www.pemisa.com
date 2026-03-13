@@ -47,6 +47,7 @@ export async function resendVoucherSms(voucherId: string) {
 
   const result = await sendVoucherSms(
     voucher.phone,
+    voucher.name,
     voucher.amount,
     voucher.voucherCode,
     voucher.id

@@ -106,7 +106,7 @@ export async function generateVouchers(
 
     // Send SMS (non-blocking - continue even if SMS fails)
     try {
-      await sendVoucherSms(row.phone, row.amount, voucherCode, voucher.id);
+      await sendVoucherSms(row.phone, row.name, row.amount, voucherCode, voucher.id);
     } catch (error) {
       console.error(`SMS failed for ${row.phone}:`, error);
       // Voucher is still created even if SMS fails

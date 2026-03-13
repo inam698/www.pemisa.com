@@ -119,14 +119,22 @@ export default function AdminVouchersPage() {
       setGenerating(true);
       const res = await apiClient<{
         success: boolean;
-        data: { voucherCode: string; id: string };
+        data: { voucherCode: string; id: string; sms?: { success: boolean; error?: string } | null };
         error?: string;
       }>("/api/admin/vouchers/generate", {
         method: "POST",
         body: JSON.stringify({ name: genName.trim(), phone: genPhone.trim(), amount }),
       });
       setGeneratedCode(res.data.voucherCode);
-      addToast({ title: "Voucher Generated", description: `Code: ${res.data.voucherCode}` });
+      if (res.data.sms && res.data.sms.success === false) {
+        addToast({
+          title: "Voucher Generated (SMS Failed)",
+          description: res.data.sms.error || `Code: ${res.data.voucherCode}`,
+          variant: "destructive",
+        });
+      } else {
+        addToast({ title: "Voucher Generated", description: `Code: ${res.data.voucherCode}` });
+      }
       fetchVouchers();
     } catch (error) {
       addToast({

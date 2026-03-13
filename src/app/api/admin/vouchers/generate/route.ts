@@ -9,6 +9,7 @@ import { withAdmin } from "@/middleware/authMiddleware";
 import prisma from "@/lib/db/prisma";
 import { JwtPayload, VoucherStatus } from "@/types";
 import { generateVoucherCode, generateBatchId, normalizePhoneNumber, isValidZambianPhone } from "@/lib/utils";
+import { sendVoucherSms } from "@/services/smsService";
 import { z } from "zod";
 
 const singleVoucherSchema = z.object({
@@ -89,6 +90,15 @@ async function generateHandler(
       },
     });
 
+    // Send SMS immediately (voucher creation should still succeed if SMS fails)
+    let sms = null as null | { success: boolean; messageId?: string; error?: string };
+    try {
+      sms = await sendVoucherSms(phone, name, amount, voucherCode, voucher.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      sms = { success: false, error: message };
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -98,6 +108,7 @@ async function generateHandler(
         phone: voucher.phone,
         amount: voucher.amount,
         expiryDate: voucher.expiryDate.toISOString(),
+        sms,
       },
     });
   } catch (error) {

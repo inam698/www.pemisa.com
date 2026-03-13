@@ -1,7 +1,7 @@
 /**
  * SMS Service
  * Handles sending SMS messages to beneficiaries.
- * Supports Africa's Talking and Twilio as providers.
+ * Supports Africa's Talking and Tessapay as providers.
  * Falls back to console logging in development/sandbox mode.
  */
 
@@ -22,18 +22,23 @@ interface SmsResult {
  * Builds the voucher SMS message body.
  */
 export function buildVoucherSms(
+  name: string,
   amount: number,
   voucherCode: string,
   expiryDays: number = 7
 ): string {
-  return [
-    "Pimisa Oil Voucher",
-    "",
-    `Amount: K${amount.toFixed(0)}`,
-    `Voucher Code: ${voucherCode}`,
-    "",
-    `Present this code at any Pimisa station within ${expiryDays} days.`,
-  ].join("\n");
+  const safeName = name?.trim() || "Customer";
+  const amt = Number.isFinite(amount) ? amount.toFixed(0) : String(amount);
+
+  return (
+    `🎉 Congratulations ${safeName}! 🎉\n\n` +
+    `You have won a cooking oil voucher from PIMISA!\n\n` +
+    `🛢️ Your Voucher Code: ${voucherCode}\n` +
+    `💰 Value: K${amt}\n\n` +
+    `Visit any Pimisa outlet, enter your phone number and this code on the dispenser machine to collect your cooking oil.\n\n` +
+    `Valid for ${expiryDays} days. Don't share your code with anyone!\n\n` +
+    `🌻 PIMISA - Quality Cooking Oil For Every Home`
+  );
 }
 
 // ─── Africa's Talking Provider ──────────────────────────────────
@@ -68,6 +73,58 @@ async function sendViaAfricasTalking(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return { success: false, error: message };
+  }
+}
+
+// ─── Tessapay Provider ─────────────────────────────────────────
+
+async function sendViaTessapay(phone: string, message: string): Promise<SmsResult> {
+  const url = process.env.TESSAPAY_SMS_URL || "https://www.tessapay.com/sms/v1/send";
+  const token = process.env.TESSAPAY_SMS_TOKEN;
+  const provider = process.env.TESSAPAY_SMS_PROVIDER || "smsala";
+
+  if (!token) {
+    return { success: false, error: "Missing TESSAPAY_SMS_TOKEN" };
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        to: phone,
+        message,
+        provider,
+      }),
+    });
+
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      // non-JSON response
+    }
+
+    if (!res.ok) {
+      const errorMessage =
+        (data && (data.error || data.message)) ||
+        text ||
+        `Tessapay request failed (${res.status})`;
+      return { success: false, error: String(errorMessage) };
+    }
+
+    const messageId =
+      (data && (data.messageId || data.id || data.data?.messageId || data.data?.id)) ||
+      undefined;
+
+    return { success: true, messageId: messageId ? String(messageId) : undefined };
+  } catch (error) {
+    const messageText = error instanceof Error ? error.message : "Unknown error";
+    return { success: false, error: messageText };
   }
 }
 
@@ -131,6 +188,9 @@ export async function sendSms(
         result = await sendViaAfricasTalking(phone, message);
       }
       break;
+    case "tessapay":
+      result = await sendViaTessapay(phone, message);
+      break;
     default:
       result = await sendViaSandbox(phone, message);
   }
@@ -153,11 +213,12 @@ export async function sendSms(
  */
 export async function sendVoucherSms(
   phone: string,
+  name: string,
   amount: number,
   voucherCode: string,
   voucherId: string
 ): Promise<SmsResult> {
   const expiryDays = parseInt(process.env.VOUCHER_EXPIRY_DAYS || "7", 10);
-  const message = buildVoucherSms(amount, voucherCode, expiryDays);
+  const message = buildVoucherSms(name, amount, voucherCode, expiryDays);
   return sendSms(phone, message, voucherId);
 }
