@@ -2,7 +2,7 @@
 
 ### Master of Arduino 2.0 Contest Entry
 
-> **Full-stack Arduino IoT platform**: Arduino-powered ESP32 firmware + cloud dashboard for automated cooking oil vending across rural Zambia. Supports 1000+ dispensers with offline-first architecture — because people still need cooking oil when the internet goes down.
+> **Full-stack Arduino IoT platform**: Arduino-powered ESP32 firmware + cloud dashboard for automated cooking oil vending across rural Zambia. Offline-first design keeps dispensers running through connectivity and power disruptions.
 
 [![Live Demo](https://img.shields.io/badge/Live-pimisa--voucher--system.vercel.app-brightgreen)](https://pimisa-voucher-system.vercel.app)
 [![Arduino](https://img.shields.io/badge/Arduino-Framework%20%2B%20IDE-00979D?logo=arduino&logoColor=white)]()
@@ -13,16 +13,16 @@
 
 ## Arduino Component (Contest Requirement)
 
-**Arduino is the foundation of this entire IoT system.** Every dispenser runs firmware built entirely within the Arduino ecosystem:
+**Arduino is the foundation of this entire IoT system.** Every dispenser runs firmware built in the Arduino ecosystem:
 
 ### Arduino Framework & IDE
 
-The entire 2,500+ line firmware is written in **Arduino C++** using the standard Arduino programming paradigm:
+Firmware is written in **Arduino C++** using the standard sketch paradigm:
 
-- **`setup()`** — Hardware initialization, WiFi connection, service bootstrap
-- **`loop()`** — Main state machine, sensor reading, heartbeat scheduling
-- **`.ino` sketch file** — `main_pimisa_dispenser.ino` is the entry point, compiled through the **Arduino IDE** (or Arduino-compatible PlatformIO)
-- **Arduino Board Manager** — ESP32 support installed via Espressif's official Arduino core (`esp32` by Espressif Systems in Arduino Board Manager)
+- **`setup()`** — Init hardware, WiFi, services
+- **`loop()`** — State machine, sensors, heartbeats
+- **`.ino` sketch** — Entry point: `main_pimisa_dispenser.ino`
+- **Board Manager** — ESP32 core via Arduino Board Manager
 
 ### Arduino Libraries Used
 
@@ -50,7 +50,7 @@ The firmware is designed for **Arduino-compatible ESP32 boards**:
 ### Why Arduino?
 
 1. **Accessibility** — Arduino IDE lowers the barrier for technicians in Zambia to maintain and modify firmware
-2. **Library ecosystem** — ArduinoJson, Keypad, LiquidCrystal_I2C are battle-tested with millions of downloads
+2. **Library ecosystem** — ArduinoJson, Keypad, LiquidCrystal_I2C are widely used
 3. **Portability** — Same sketch runs on generic ESP32 dev boards AND official Arduino Nano ESP32 hardware
 
 ---
@@ -69,9 +69,9 @@ In rural Zambia, cooking oil distribution to vulnerable communities relies on pa
 
 ## Socioeconomic Impact
 
-In many rural Zambian communities, cooking oil is a highly sought-after commodity distributed by aid organizations or sold at local stations. The legacy system of paper vouchers led to rampant duplication, untraceable redemption, and stock theft. PIMISA transforms this completely. 
+In many rural Zambian communities, cooking oil distribution still relies on paper vouchers, which are easy to duplicate and difficult to audit. PIMISA replaces paper with secure digital vouchers and automated volumetric dispensing, ensuring each beneficiary receives the correct allocation.
 
-By digitizing the entire supply chain, aid organizations and station owners can monitor inventory in real-time remotely. Beneficiaries receive a secure SMS/WhatsApp code instead of a paper slip. Discarding paper vouchers eliminates physical theft, and exact volumetric dispensing means customers receive the precise amount of oil they are entitled to—down to the exact milliliter. This ensures fair, transparent, and equitable distribution, significantly empowering both local station managers and vulnerable community members.
+By recording every dispense event and syncing to the dashboard (online or later), stakeholders gain transparency and better inventory planning.
 
 ---
 
@@ -243,11 +243,11 @@ ESP32 Dev Module
 
 ## Hardware Engineering Challenges Overcome
 
-Operating an IoT system in rural African environments presents unique constraints. Here is how the Arduino-based hardware solves them:
+Rural deployments introduce constraints that the Arduino-based design addresses:
 
-- **Power Instability & Brownouts:** Grid power in rural areas is notoriously unreliable. The system is designed around a 12V DC ecosystem, allowing it to easily run off an external 12V lead-acid battery or solar setup. A step-down buck converter supplies a clean 5V to the Arduino module. If a power outage occurs mid-dispense, the NVS flash immediately and securely records the exact volume dispensed to prevent data loss.
-- **Sensor Debouncing at High Flow Rates:** The YF-S201 Hall effect flow sensor generates rapid pulses. Relying on the standard `loop()` to count pulses resulted in missed data and inaccurate pouring. We utilized the Arduino `attachInterrupt()` functionality. The flow counting occurs purely in hardware interrupts (`IRAM_ATTR`), ensuring 100% volumetric accuracy regardless of what the main thread is processing.
-- **NVS Wear Leveling:** Due to the offline-first nature, Flash memory could quickly degrade from thousands of rewrites. We implemented a circular buffer queue inside the ESP32's `Preferences.h` system, significantly extending the life of the flash memory while preserving transactional integrity.
+- **Power instability:** 12V ecosystem (battery/solar-ready) with regulated logic supply; NVS persists critical state across outages.
+- **Accurate flow metering:** `attachInterrupt()` + ISR pulse counting (`IRAM_ATTR`) keeps accuracy under load.
+- **Flash endurance:** Bounded/circular offline queues reduce unnecessary writes while preserving integrity.
 
 ---
 
@@ -335,7 +335,7 @@ firmware/
 | POST | `/api/voucher/redeem` | API Key | Confirm voucher redemption |
 | POST | `/api/sales/report` | API Key | Report cash/voucher sale |
 
-The admin dashboard also exposes 20+ REST endpoints for machine CRUD, fleet management, voucher import, pricing rules, and real-time monitoring — all protected by Firebase Auth with role-based access control.
+The admin dashboard exposes REST endpoints for fleet management, vouchers, pricing, monitoring, and device registration — protected by Firebase Auth + roles.
 
 ---
 
@@ -350,7 +350,7 @@ The admin dashboard also exposes 20+ REST endpoints for machine CRUD, fleet mana
 | **Double-Spend** | Atomic database transactions for voucher redemption |
 | **Safety Caps** | Max 50L per transaction, 5-min pump timeout, no-flow detection |
 
-**1000+ dispensers** supported via adaptive heartbeat (30s × 1000 = ~33 req/sec). Offline queues prevent server overload. NVS persistence means zero data loss across power outages. OTA updates deploy fleet-wide from the dashboard.
+**1000+ dispensers** supported via adaptive heartbeat (30s × 1000 = ~33 req/sec). Offline queues prevent overload; NVS persists data across outages; OTA updates deploy fleet-wide.
 
 ---
 
@@ -382,21 +382,21 @@ The PIMISA IoT Cooking Oil Dispenser System contributes to several United Nation
 
 **SDG 2 – Zero Hunger**
 
-The system supports food security by ensuring fair and accurate distribution of cooking oil within communities. Using automated dispensing and controlled measurements, the system guarantees that each beneficiary receives the correct allocated amount. This prevents hoarding, reduces inequality in distribution, and improves access to essential food resources.
+The system supports food security by ensuring fair and accurate distribution of cooking oil. Automated dispensing guarantees each beneficiary receives the correct allocated amount, reducing hoarding and inequality.
 
 **SDG 9 – Industry, Innovation and Infrastructure**
 
-PIMISA introduces an innovative IoT-based infrastructure for resource distribution. By integrating microcontrollers, sensors, automated pumps, and digital monitoring systems, the project transforms a traditionally manual distribution process into a smart and efficient technological solution. This promotes innovation in community infrastructure and demonstrates how embedded systems can solve real-world problems.
+PIMISA introduces IoT-based infrastructure for resource distribution by integrating microcontrollers, sensors, pumps, and digital monitoring.
 
 **SDG 12 – Responsible Consumption and Production**
 
-The system promotes responsible resource management by dispensing precise quantities of cooking oil and recording usage data. This reduces waste, improves transparency in supply chains, and ensures that limited resources are used efficiently and sustainably.
+PIMISA promotes responsible resource management by dispensing precise quantities and recording usage data, reducing waste and improving supply-chain transparency.
 
 **SDG 11 – Sustainable Cities and Communities**
 
-PIMISA contributes to the development of smarter and more organized communities by introducing a digital distribution platform that improves resource management. The system enables better monitoring, accountability, and planning for community supply programs.
+PIMISA supports more accountable community supply programs through digital monitoring, improved planning, and clearer audit trails.
 
-Overall, the project demonstrates how IoT and embedded systems engineering can support sustainable development and improve community resource distribution.
+Overall, the project demonstrates how IoT can support sustainable development and improve resource distribution.
 
 ## Author
 
