@@ -156,19 +156,7 @@ By recording every dispense event and syncing to the dashboard (online or later)
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Arduino Framework** | Arduino IDE / PlatformIO — core development environment |
-| **Arduino Libraries** | Wire, LiquidCrystal_I2C, Keypad, ArduinoJson v7, WiFi, HTTPClient, Update, Preferences |
-| **Microcontroller** | ESP32 Dev Module / Arduino Nano ESP32 (Dual-core 240MHz, WiFi, 4MB Flash) |
-| **Firmware** | Arduino C++ (~2,500 lines), 12 source files, modular .h/.cpp architecture |
-| **Frontend** | Next.js 15, React 19, TypeScript, Tailwind CSS, ShadCN UI |
-| **Backend** | Next.js API Routes, Prisma ORM v6, REST architecture |
-| **Database** | PostgreSQL (Neon Serverless) |
-| **Auth** | Firebase Admin SDK, role-based middleware |
-| **Deployment** | Vercel (auto-deploy from GitHub) |
-| **SMS** | Africa's Talking API |
-| **Hardware** | Flow sensor, 12V pump + relay, 4x4 keypad, I2C LCD, NTC thermistor |
+Arduino ESP32 firmware (Arduino C++) + cloud dashboard (Next.js + Prisma + PostgreSQL) with Firebase Auth, device API keys, OTA updates, and offline-first NVS storage.
 
 ---
 
@@ -176,35 +164,7 @@ By recording every dispense event and syncing to the dashboard (online or later)
 
 The biggest challenge in rural Zambia: **internet goes down, power goes out, but people still need oil.**
 
-```
-ONLINE MODE                              OFFLINE MODE
-───────────                              ────────────
-Customer enters voucher code             Customer enters voucher code
-        │                                        │
-        ▼                                        ▼
-ESP32 sends to cloud server              ESP32 checks NVS flash cache
-        │                                        │
-        ▼                                        ▼
-Server verifies + responds               Found? → Dispense oil
-        │                                        │
-        ▼                                        ▼
-Cache voucher locally (NVS)              Queue redemption in NVS flash
-        │                                        │
-        ▼                                        ▼
-Dispense oil                             ┌─── Power outage? ───┐
-        │                                │   NVS survives      │
-        ▼                                │   reboot/power loss  │
-Report sale to server                    └──────────┬──────────┘
-                                                    │
-                                         When internet returns:
-                                         Auto-sync all queued
-                                         transactions to cloud
-```
-
-**Storage Architecture:**
-- **RAM Queue**: 50 sales (fast, lost on reboot)
-- **NVS Flash Queue**: 100 sales (persistent, survives power outages)
-- **Voucher Cache**: 50 vouchers, 24-hour TTL (offline verification)
+When online, vouchers are verified/redeemed via the API. When offline, the device uses an NVS-backed voucher cache and stores transactions in a persistent queue; when connectivity returns, it auto-syncs to restore a complete audit trail.
 
 ---
 
@@ -327,17 +287,7 @@ firmware/
 
 ## API Endpoints
 
-### Device API (ESP32 → Cloud)
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/device/heartbeat` | API Key | Machine health check + telemetry |
-| POST | `/api/device/transaction` | API Key | Log dispensing transaction |
-| POST | `/api/voucher/verify` | API Key | Verify voucher code |
-| POST | `/api/voucher/redeem` | API Key | Confirm voucher redemption |
-| POST | `/api/sales/report` | API Key | Report cash/voucher sale |
-
-The admin dashboard exposes REST endpoints for fleet management, vouchers, pricing, monitoring, and device registration — protected by Firebase Auth + roles.
+Device firmware calls REST endpoints for heartbeat/telemetry, voucher verify/redeem, transaction logging, and sales reporting (authenticated by a per-device API key). Admin endpoints are protected by Firebase Auth + roles.
 
 ---
 
@@ -376,10 +326,43 @@ The admin dashboard exposes REST endpoints for fleet management, vouchers, prici
 
 **Arduino enables impact at scale**: one sketch, one framework, deployed across many dispensers.
 
-## Submission Evidence (Photos + Video)
+## Project Submission (Form Format)
 
-- **Photos**: Arduino board visible (e.g., Nano ESP32 ABX00083) + wiring.
-- **Video (≤3 min)**: voucher entry → verify (online/offline) → dispense → dashboard log.
+### Step 1 – Project Details
+
+**Project Name:** PIMISA – Arduino IoT Cooking Oil Dispenser (Offline-First Voucher System)
+
+**Cover image and gallery (recommended uploads):**
+- Cover/gallery: Arduino Nano ESP32 (ABX00083) photo + wiring photo + demo video showing dispense + dashboard log
+
+**Project start date, project status and tags:**
+- Start date: February 2026
+- Status: In progress
+- Tags: Arduino, ESP32, IoT, Offline-first, Voucher, OTA, Zambia
+
+### Step 2 – Description
+
+#### Abstract (public, max 1500 characters)
+
+PIMISA is an Arduino-powered IoT cooking-oil dispenser for rural voucher distribution in Zambia. Arduino C++ firmware on ESP32 (Arduino Nano ESP32 ABX00083 supported) uses keypad + LCD UX, flow-sensor metering, and safe pump control. It verifies vouchers online but keeps working offline via an NVS voucher cache and a persistent transaction queue that syncs later. A cloud dashboard manages vouchers, stations, devices, monitoring, and reports—reducing fraud and improving transparency.
+
+#### Detailed information (visible to logged users, min 1000 characters)
+
+PIMISA combines Arduino C++ firmware on ESP32-class boards (including Arduino Nano ESP32 ABX00083 support) with a cloud dashboard for voucher management and monitoring. The dispenser uses a 4×4 keypad + 16×2 I2C LCD, a hall-effect flow sensor for metering, and a relay-controlled 12V pump.
+
+What you need: Arduino Nano ESP32/ESP32 dev board, flow sensor (e.g., YF-S201), 12V pump + relay, keypad, I2C LCD, and stable 12V power.
+
+How to make it: wire the components to the ESP32 GPIOs, flash the Arduino sketch, configure WiFi + device credentials, calibrate pulses-per-litre, and register the device in the dashboard to generate an API key.
+
+How to use it: enter a voucher; verify online or via offline cache; dispense and sync later. Works through power cuts and intermittent internet without losing records.
+
+Where it can be used: rural distribution points, voucher programs, and controlled dispensing scenarios needing auditability.
+
+Most important feature: offline-first reliability + OTA + a secure device API for a scalable audit trail.
+
+### Step 3 – Publish!
+
+Preview, confirm Arduino hardware is visible in photos, then publish. Help: techmasterevent@tme.eu.
 
 ---
 
