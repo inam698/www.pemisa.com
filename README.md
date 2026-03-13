@@ -67,6 +67,12 @@ In rural Zambia, cooking oil distribution to vulnerable communities relies on pa
 2. **Cloud-based admin dashboard** for fleet management, voucher distribution, and real-time monitoring
 3. **Offline-first architecture** — dispensers keep working without internet and sync when connectivity returns
 
+## Socioeconomic Impact
+
+In many rural Zambian communities, cooking oil is a highly sought-after commodity distributed by aid organizations or sold at local stations. The legacy system of paper vouchers led to rampant duplication, untraceable redemption, and stock theft. PIMISA transforms this completely. 
+
+By digitizing the entire supply chain, aid organizations and station owners can monitor inventory in real-time remotely. Beneficiaries receive a secure SMS/WhatsApp code instead of a paper slip. Discarding paper vouchers eliminates physical theft, and exact volumetric dispensing means customers receive the precise amount of oil they are entitled to—down to the exact milliliter. This ensures fair, transparent, and equitable distribution, significantly empowering both local station managers and vulnerable community members.
+
 ---
 
 ## System Architecture
@@ -200,7 +206,14 @@ Report sale to server                    └──────────┬─
 
 ---
 
-## Hardware Wiring Diagram
+## Hardware Wiring & Components
+
+**Core Components (Bill of Materials):**
+* **Microcontroller**: Arduino Nano ESP32 (ABX00083) or ESP32 Dev Module
+* **Display**: 16x2 I2C Character LCD
+* **Input**: 4x4 Matrix Membrane Keypad
+* **Dispensing**: 12V Submersible DC Oil Pump + 5V/12V Relay Module
+* **Sensors**: YF-S201 Hall Effect Flow Sensor, NTC Thermistor (temp), Analog Float Sensor (oil level)
 
 ```
 ESP32 Dev Module
@@ -225,6 +238,16 @@ ESP32 Dev Module
 │                                │
 └────────────────────────────────┘
 ```
+
+---
+
+## Hardware Engineering Challenges Overcome
+
+Operating an IoT system in rural African environments presents unique constraints. Here is how the Arduino-based hardware solves them:
+
+- **Power Instability & Brownouts:** Grid power in rural areas is notoriously unreliable. The system is designed around a 12V DC ecosystem, allowing it to easily run off an external 12V lead-acid battery or solar setup. A step-down buck converter supplies a clean 5V to the Arduino module. If a power outage occurs mid-dispense, the NVS flash immediately and securely records the exact volume dispensed to prevent data loss.
+- **Sensor Debouncing at High Flow Rates:** The YF-S201 Hall effect flow sensor generates rapid pulses. Relying on the standard `loop()` to count pulses resulted in missed data and inaccurate pouring. We utilized the Arduino `attachInterrupt()` functionality. The flow counting occurs purely in hardware interrupts (`IRAM_ATTR`), ensuring 100% volumetric accuracy regardless of what the main thread is processing.
+- **NVS Wear Leveling:** Due to the offline-first nature, Flash memory could quickly degrade from thousands of rewrites. We implemented a circular buffer queue inside the ESP32's `Preferences.h` system, significantly extending the life of the flash memory while preserving transactional integrity.
 
 ---
 
