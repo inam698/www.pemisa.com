@@ -47,6 +47,8 @@ The firmware is designed for **Arduino-compatible ESP32 boards**:
 - **Arduino Nano ESP32-S3** (official Arduino product — fully supported)
 - Any ESP32 board supported by the Arduino Board Manager
 
+For contest submission, include photos showing an official Arduino board (e.g., Nano ESP32 ABX00083).
+
 ### Why Arduino?
 
 1. **Accessibility** — Arduino IDE lowers the barrier for technicians in Zambia to maintain and modify firmware
@@ -350,7 +352,7 @@ The admin dashboard exposes REST endpoints for fleet management, vouchers, prici
 | **Double-Spend** | Atomic database transactions for voucher redemption |
 | **Safety Caps** | Max 50L per transaction, 5-min pump timeout, no-flow detection |
 
-**1000+ dispensers** supported via adaptive heartbeat (30s × 1000 = ~33 req/sec). Offline queues prevent overload; NVS persists data across outages; OTA updates deploy fleet-wide.
+**1000+ dispensers** supported via adaptive heartbeat; offline queues + OTA keep fleets resilient.
 
 ---
 
@@ -372,13 +374,18 @@ The admin dashboard exposes REST endpoints for fleet management, vouchers, prici
 | **c) Innovativeness** | Offline-first: NVS flash caches vouchers and queues sales across power outages. Adaptive heartbeat scales to 1000+ devices. OTA deploys firmware remotely. |
 | **d) Arduino Component** | Built on **Arduino Framework** (IDE + ESP32 Core). Uses 9 Arduino libraries. Compatible with **Arduino Nano ESP32** (ABX00083) — official Arduino hardware. `.ino` sketch, `setup()`/`loop()`, and Board Manager are the foundation. |
 
-**Arduino enables impact at scale**: one sketch, one framework, 1000+ oil dispensers, serving communities that need it most.
+**Arduino enables impact at scale**: one sketch, one framework, deployed across many dispensers.
+
+## Submission Evidence (Photos + Video)
+
+- **Photos**: Arduino board visible (e.g., Nano ESP32 ABX00083) + wiring.
+- **Video (≤3 min)**: voucher entry → verify (online/offline) → dispense → dashboard log.
 
 ---
 
 ## Alignment with United Nations Sustainable Development Goals (SDGs)
 
-The PIMISA IoT Cooking Oil Dispenser System contributes to several United Nations Sustainable Development Goals by improving resource distribution, reducing waste, and introducing smart infrastructure into community supply systems.
+The PIMISA IoT Cooking Oil Dispenser System contributes to United Nations Sustainable Development Goals by improving distribution transparency and reducing waste.
 
 **SDG 2 – Zero Hunger**
 
@@ -395,8 +402,6 @@ PIMISA promotes responsible resource management by dispensing precise quantities
 **SDG 11 – Sustainable Cities and Communities**
 
 PIMISA supports more accountable community supply programs through digital monitoring, improved planning, and clearer audit trails.
-
-Overall, the project demonstrates how IoT can support sustainable development and improve resource distribution.
 
 ## Author
 
