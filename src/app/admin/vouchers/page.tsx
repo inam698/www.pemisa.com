@@ -163,13 +163,21 @@ export default function AdminVouchersPage() {
   const getShareMessage = () => {
     if (!generatedCode) return "";
     const amt = parseFloat(genAmount).toFixed(0);
-    return `🎉 Congratulations ${genName}! 🎉\n\n` +
-      `You have won a cooking oil voucher from PIMISA!\n\n` +
-      `🛢️ Your Voucher Code: ${generatedCode}\n` +
-      `💰 Value: K${amt}\n\n` +
-      `Visit any Pimisa outlet, enter your phone number and this code on the dispenser machine to collect your cooking oil.\n\n` +
-      `Valid for 7 days. Don't share your code with anyone!\n\n` +
-      `🌻 PIMISA - Quality Cooking Oil For Every Home`;
+    return `PIMISA Cooking Oil Voucher\n` +
+      `========================\n\n` +
+      `Dear ${genName},\n\n` +
+      `You have received a cooking oil voucher.\n\n` +
+      `Voucher Code: ${generatedCode}\n` +
+      `Value: K${amt}\n` +
+      `Expires: 7 days from today\n\n` +
+      `How to redeem:\n` +
+      `1. Visit any PIMISA dispensing station\n` +
+      `2. Enter your phone number on the machine\n` +
+      `3. Enter the voucher code above\n` +
+      `4. Collect your cooking oil\n\n` +
+      `Keep this code private. Do not share it.\n\n` +
+      `PIMISA - Quality Cooking Oil For Every Home\n` +
+      `www.pimisa.com`;
   };
 
   const copyShareMessage = () => {

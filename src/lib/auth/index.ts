@@ -22,7 +22,7 @@ function getJwtSecret(): string {
   return secret;
 }
 
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
+const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || "24h").trim();
 
 /**
  * Generates a JWT token for an authenticated user.

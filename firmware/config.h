@@ -28,10 +28,10 @@
 #define API_RETRY_DELAY_MS  2000   // Base delay between retries
 
 // ─── Device Credentials (from admin dashboard) ──────────────────
-// Machine: Oil Dispenser
-// Generated: 3/9/2026
-#define DEVICE_ID           "DISP-2231-54AC"
-#define API_KEY             "pimisa_37c05c163f78f0817c43a30a32daaf86fcf2208c8bd08b3740f825f2063f8894"
+// Machine: Oil Dispenser #1 — Lusaka Station 1
+// Generated: 2026-03-14
+#define DEVICE_ID           "DISP-7281-89E6"
+#define API_KEY             "pimisa_633084d7e23469b059ec1785d084b9714419515e08d714bf2be8c06ef3f107b0"
 
 // ─── Hardware Pins ──────────────────────────────────────────────
 #define FLOW_SENSOR_PIN     4      // Flow sensor signal pin (interrupt-capable)
