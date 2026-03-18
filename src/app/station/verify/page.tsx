@@ -124,7 +124,13 @@ export default function StationVerifyPage() {
   // ─── Redeem Voucher ─────────────────────────────────────────
 
   const handleRedeem = async () => {
-    if (!verifiedVoucher || !user?.stationId) return;
+    if (!verifiedVoucher) return;
+
+    if (!user?.stationId) {
+      setErrorMessage("Your account is not assigned to a station. Please contact an administrator.");
+      setStep("denied");
+      return;
+    }
 
     setStep("redeeming");
 
@@ -134,6 +140,7 @@ export default function StationVerifyPage() {
         body: JSON.stringify({
           voucherId: verifiedVoucher.id,
           stationId: user.stationId,
+          stationName: user.stationName || undefined,
         }),
       });
 

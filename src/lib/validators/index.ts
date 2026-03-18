@@ -64,6 +64,7 @@ export const voucherVerifySchema = z.object({
 export const voucherRedeemSchema = z.object({
   voucherId: z.string().min(1, "Voucher ID is required"),
   stationId: z.string().min(1, "Station ID is required"),
+  stationName: z.string().optional(),
 });
 
 // ─── Voucher Query Parameters ───────────────────────────────────

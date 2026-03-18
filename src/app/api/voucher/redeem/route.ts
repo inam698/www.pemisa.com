@@ -116,7 +116,7 @@ async function redeemHandler(request: NextRequest) {
       );
     }
 
-    const { voucherId, stationId } = validation.data;
+    const { voucherId, stationId, stationName } = validation.data;
 
     // Ensure station users can only redeem for their own station
     if (user.role === "STATION" && user.stationId !== stationId) {
@@ -127,7 +127,7 @@ async function redeemHandler(request: NextRequest) {
     }
 
     // Redeem the voucher (atomic transaction)
-    const updatedVoucher = await redeemVoucher(voucherId, stationId);
+    const updatedVoucher = await redeemVoucher(voucherId, stationId, stationName);
 
     // Log audit trail for dashboard redemption
     await logAudit({

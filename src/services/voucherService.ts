@@ -223,7 +223,11 @@ export async function verifyVoucher(
  * @param stationId - ID of the redeeming station
  * @returns Updated voucher record
  */
-export async function redeemVoucher(voucherId: string, stationId: string) {
+export async function redeemVoucher(
+  voucherId: string,
+  stationId: string,
+  stationName?: string | null
+) {
   // Use transaction for atomicity (prevents double-redemption race condition)
   return prisma.$transaction(async (tx: TransactionClient) => {
     // Re-fetch voucher inside transaction with row-level lock intent
@@ -247,12 +251,37 @@ export async function redeemVoucher(voucherId: string, stationId: string) {
       throw new Error("Voucher has expired");
     }
 
+    // Ensure station exists in the database — auto-create if missing
+    // This handles the case where stations exist in Firestore but not yet in PostgreSQL
+    let resolvedStationId: string | null = null;
+    if (stationId) {
+      const existingStation = await tx.station.findUnique({ where: { id: stationId } });
+      if (existingStation) {
+        resolvedStationId = stationId;
+      } else {
+        // Auto-create station record to keep Firestore and PostgreSQL in sync
+        const newStation = await tx.station.create({
+          data: {
+            id: stationId,
+            stationName: stationName || `Station ${stationId}`,
+            location: "",
+          },
+        });
+        resolvedStationId = newStation.id;
+        logWarn("Auto-created missing station during redemption", {
+          stationId,
+          stationName: newStation.stationName,
+          voucherId,
+        });
+      }
+    }
+
     // Mark voucher as used
     const updatedVoucher = await tx.voucher.update({
       where: { id: voucherId },
       data: {
         status: VoucherStatus.USED,
-        stationId,
+        stationId: resolvedStationId,
         redeemedAt: new Date(),
       },
       include: {
