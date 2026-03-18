@@ -251,91 +251,92 @@ void setup() {
 void changeState(DispenserState newState);
 
 // ═══════════════════════════════════════════════════════════════════════
-//  MAIN LOOP
+//  LOOP FUNCTION
 // ═══════════════════════════════════════════════════════════════════════
 
+unsigned long lastKeyPressTime = 0;
+const unsigned long debounceDelay = 50; // 50ms debounce delay
+
 void loop() {
-  // ── Feed watchdog to prevent reset ─────────────────────────────
-  esp_task_wdt_reset();
+    // Reset watchdog — prevents WDT reset during normal operation
+    esp_task_wdt_reset();
 
-  // ── Maintain WiFi connection ───────────────────────────────────
-  wifiManager.loop();
-
-  // ── Read sensors and update heartbeat data ──────────────────────
-  if (millis() - lastSensorReadMs >= SENSOR_READ_INTERVAL_MS) {
-    lastSensorReadMs = millis();
-    heartbeatService.setOilLevel(readOilLevel());
-    heartbeatService.setTemperature(readTemperature());
-  }
-
-  // ── Send heartbeats & process offline queues ───────────────────
-  if (wifiManager.isConnected()) {
-    heartbeatService.loop();
-    salesReporting.processOfflineQueue();
-    voucherService.processOfflineRedemptions();
-
-    // Upload NVS-persisted offline sales (survived power outage)
-    #if NVS_ENABLED
-    if (millis() - lastNvsUploadMs > NVS_OFFLINE_RETRY_MS) {
-      lastNvsUploadMs = millis();
-      uploadNvsSales();
-    }
-    #endif
-  }
-
-  // ── Read keypad ────────────────────────────────────────────────
-  char key = keypad.getKey();
-
-  // ── State machine ─────────────────────────────────────────────
-  switch (currentState) {
-    case STATE_IDLE:
-      handleIdleState(key);
-      break;
-    case STATE_SELECT_MODE:
-      handleSelectModeState(key);
-      break;
-    case STATE_VOUCHER_PHONE:
-      handleVoucherPhoneState(key);
-      break;
-    case STATE_VOUCHER_CODE:
-      handleVoucherCodeState(key);
-      break;
-    case STATE_VOUCHER_VERIFYING:
-      // This is handled synchronously in the transition
-      break;
-    case STATE_CASH_AMOUNT:
-      handleCashAmountState(key);
-      break;
-    case STATE_BUY_LITRES:
-      handleBuyLitresState(key);
-      break;
-    case STATE_DISPENSING:
-      handleDispensingState(key);
-      break;
-    case STATE_COMPLETE:
-      handleCompleteState(key);
-      break;
-    case STATE_ERROR:
-      handleErrorState(key);
-      break;
-  }
-
-  // ── Safety: watchdog for pump ──────────────────────────────────
-  if (pumpRunning) {
-    // Emergency stop if pump runs too long
-    if (millis() - pumpStartTime > MAX_DISPENSE_TIME_MS) {
-      stopPump();
-      errorMessage = "Timeout! Pump off";
-      changeState(STATE_ERROR);
+    // Check for keypad input
+    char key = keypad.getKey();
+    if (key) {
+        unsigned long currentTime = millis();
+        if (currentTime - lastKeyPressTime > debounceDelay) {
+            lastKeyPressTime = currentTime;
+            Serial.printf("[Keypad] Key pressed: %c\n", key);
+            handleKeyPress(key);
+        }
     }
 
-    // Emergency stop if no flow detected
-    if (millis() - lastFlowCheckMs > FLOW_TIMEOUT_MS && litresDispensed < 0.01f) {
-      stopPump();
-      errorMessage = "No flow detected";
-      changeState(STATE_ERROR);
+    // Maintain WiFi connection (non-blocking reconnect)
+    wifiManager.loop();
+
+    // ── IoT services (only when online) ────────────────────────
+    unsigned long now = millis();
+    if (wifiManager.isConnected()) {
+        // Heartbeat — sends status/telemetry to server periodically
+        heartbeatService.loop();
+
+        // Retry sending any queued offline sales
+        salesReporting.processOfflineQueue();
+
+        // Upload NVS-persisted offline sales
+        if (now - lastNvsUploadMs >= NVS_OFFLINE_RETRY_MS) {
+            lastNvsUploadMs = now;
+            uploadNvsSales();
+        }
     }
-  }
+
+    // ── Read sensors periodically ──────────────────────────────
+    if (now - lastSensorReadMs >= SENSOR_READ_INTERVAL_MS) {
+        lastSensorReadMs = now;
+        float oilLevel = readOilLevel();
+        float temperature = readTemperature();
+        heartbeatService.setOilLevel(oilLevel);
+        heartbeatService.setTemperature(temperature);
+    }
+
+    // ── Handle dispensing state (always runs for active pump) ───
+    if (currentState == STATE_DISPENSING) {
+        handleDispensingState(0);
+    }
+}
+
+// Route key presses to the correct state handler
+void handleKeyPress(char key) {
+    switch (currentState) {
+        case STATE_IDLE:
+            handleIdleState(key);
+            break;
+        case STATE_SELECT_MODE:
+            handleSelectModeState(key);
+            break;
+        case STATE_VOUCHER_PHONE:
+            handleVoucherPhoneState(key);
+            break;
+        case STATE_VOUCHER_CODE:
+            handleVoucherCodeState(key);
+            break;
+        case STATE_CASH_AMOUNT:
+            handleCashAmountState(key);
+            break;
+        case STATE_BUY_LITRES:
+            handleBuyLitresState(key);
+            break;
+        case STATE_DISPENSING:
+            handleDispensingState(key);
+            break;
+        case STATE_COMPLETE:
+            handleCompleteState(key);
+            break;
+        case STATE_ERROR:
+            handleErrorState(key);
+            break;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -11,6 +11,8 @@
 #include "heartbeat_service.h"
 #include "config.h"
 #include <ArduinoJson.h>
+#include <WiFi.h>
+#include <esp_system.h>
 
 // ─── Public Methods ─────────────────────────────────────────────
 
@@ -98,6 +100,11 @@ bool HeartbeatService::_sendHeartbeat() {
   doc["device_id"] = _deviceId;
   doc["firmware_version"] = FIRMWARE_VERSION;
   doc["uptime_seconds"] = getUptimeSeconds();
+
+  // WiFi signal strength and memory (server uses for admin dashboard)
+  doc["rssi"] = WiFi.RSSI();
+  doc["free_heap"] = (unsigned long)ESP.getFreeHeap();
+  doc["ip_address"] = WiFi.localIP().toString();
 
   // Include sensor data if available
   if (_oilLevel >= 0.0f) {

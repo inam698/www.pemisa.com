@@ -12,6 +12,7 @@
 
 #include <Arduino.h>
 #include "api_client.h"
+#include "nvs_storage.h"
 
 // Maximum number of sales to queue offline before oldest is discarded
 #define OFFLINE_QUEUE_SIZE 50
@@ -38,7 +39,8 @@ public:
    * @param deviceId   This machine's device ID
    * @param pricePerLitre  Configured price per litre in ZMW
    */
-  void begin(ApiClient* apiClient, const char* deviceId, float pricePerLitre);
+  void begin(ApiClient* apiClient, const char* deviceId, float pricePerLitre,
+             NvsStorage* nvsStorage = nullptr);
 
   /**
    * Report a cash sale transaction.
@@ -105,6 +107,7 @@ public:
 
 private:
   ApiClient* _api = nullptr;
+  NvsStorage* _nvs = nullptr;
   String _deviceId;
   float _pricePerLitre = 45.0f;
 

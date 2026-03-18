@@ -28,16 +28,16 @@
 #define API_RETRY_DELAY_MS  2000   // Base delay between retries
 
 // ─── Device Credentials (from admin dashboard) ──────────────────
-// These are generated when you register a machine in the dashboard.
-// Navigate to Admin > Machines > Register Machine to obtain them.
-#define DEVICE_ID           "DISP-LSK-001"
-#define API_KEY             "pimisa_9c9c78160941a342189fbfa95f507e619add19572343028a"
+// Machine: Oil Dispenser #1 — Lusaka Station 1
+// Generated: 2026-03-14
+#define DEVICE_ID           "DISP-7281-89E6"
+#define API_KEY             "pimisa_633084d7e23469b059ec1785d084b9714419515e08d714bf2be8c06ef3f107b0"
 
 // ─── Hardware Pins ──────────────────────────────────────────────
 #define FLOW_SENSOR_PIN     4      // Flow sensor signal pin (interrupt-capable)
 #define PUMP_RELAY_PIN      23     // Relay controlling the 12V oil pump
 #define KEYPAD_ROW_PINS     {27, 14, 12, 13}  // 4x4 keypad row pins
-#define KEYPAD_COL_PINS     {32, 35, 25, 26}  // 4x4 keypad column pins (NOTE: GPIO35 input-only)
+#define KEYPAD_COL_PINS     {32, 33, 25, 26}  // 4x4 keypad column pins
 #define LCD_I2C_ADDR        0x27   // I2C address for 16x2 LCD
 #define LCD_COLS            16
 #define LCD_ROWS            2
