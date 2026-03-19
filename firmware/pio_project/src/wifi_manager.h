@@ -60,7 +60,7 @@ private:
   WifiState _state = WIFI_STATE_DISCONNECTED;
   uint8_t _retryCount = 0;
 
-  void _attemptConnection();
+  void _attemptConnection(bool blocking = true);
 };
 
 #endif // WIFI_MANAGER_H

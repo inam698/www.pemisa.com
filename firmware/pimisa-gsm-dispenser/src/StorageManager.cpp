@@ -34,7 +34,7 @@ bool StorageManager::enqueue(const OfflineTransaction& txn) {
     f.close();
     _size++;
 
-    LOGF("STOR", "Enqueued: %s (queue=%d)", txn.transactionId.c_str(), _size);
+    LOGF("STOR", "Enqueued: %s (queue=%d)", txn.voucherCode, _size);
     return true;
 }
 
@@ -55,6 +55,13 @@ bool StorageManager::peek(OfflineTransaction& out) {
     }
 
     return parseLine(line, out);
+}
+
+// ---- dequeue(out) -------------------------------------------
+// Peek + remove: reads front entry into out, then removes it
+bool StorageManager::dequeue(OfflineTransaction& out) {
+    if (!peek(out)) return false;
+    return dequeue();
 }
 
 // ---- dequeue() ----------------------------------------------
@@ -120,21 +127,32 @@ bool StorageManager::parseLine(const String& line, OfflineTransaction& out) {
         LOGF("STOR", "Parse error: %s", line.c_str());
         return false;
     }
-    out.transactionId = doc["id"]     | "";
-    out.voucherCode   = doc["code"]   | "";
-    out.volumeMl      = doc["vol"]    | 0.0f;
-    out.timestamp     = doc["ts"]     | 0UL;
-    out.deviceId      = doc["dev"]    | DEVICE_ID;
-    return out.transactionId.length() > 0;
+    memset(&out, 0, sizeof(out));
+    strncpy(out.transactionId,  doc["id"]   | "",        sizeof(out.transactionId) - 1);
+    strncpy(out.voucherCode,    doc["code"] | "",        sizeof(out.voucherCode) - 1);
+    strncpy(out.deviceId,       doc["dev"]  | DEVICE_ID, sizeof(out.deviceId) - 1);
+    strncpy(out.type,           doc["type"] | "voucher", sizeof(out.type) - 1);
+    strncpy(out.phone,          doc["ph"]   | "",        sizeof(out.phone) - 1);
+    out.volumeMl        = doc["vol"]    | 0.0f;
+    out.litresDispensed = doc["litres"] | 0.0f;
+    out.amount          = doc["amt"]    | 0.0f;
+    out.timestamp       = doc["ts"]     | 0UL;
+    out.retryCount      = doc["retry"]  | 0;
+    return out.voucherCode[0] != '\0';
 }
 
 String StorageManager::serialize(const OfflineTransaction& txn) {
     JsonDocument doc;
-    doc["id"]   = txn.transactionId;
-    doc["code"] = txn.voucherCode;
-    doc["vol"]  = (int)txn.volumeMl;   // Integer mL saves space
-    doc["ts"]   = txn.timestamp;
-    doc["dev"]  = txn.deviceId;
+    doc["id"]    = txn.transactionId;
+    doc["code"]  = txn.voucherCode;
+    doc["dev"]   = txn.deviceId;
+    doc["type"]  = txn.type;
+    doc["ph"]    = txn.phone;
+    doc["vol"]   = (int)txn.volumeMl;
+    doc["litres"] = txn.litresDispensed;
+    doc["amt"]   = txn.amount;
+    doc["ts"]    = txn.timestamp;
+    doc["retry"] = txn.retryCount;
     String out;
     serializeJson(doc, out);
     return out;
@@ -151,4 +169,39 @@ void StorageManager::recount() {
         if (line.length() > 2) _size++;   // Ignore blank lines
     }
     f.close();
+}
+
+// ---- loadPricePerLitre() ------------------------------------
+float StorageManager::loadPricePerLitre() {
+    Preferences prefs;
+    prefs.begin("pimisa", true);  // read-only
+    float price = prefs.getFloat("price_litre", 10.0f);  // default 10.0 ZMW
+    prefs.end();
+    return price;
+}
+
+// ---- savePricePerLitre() ------------------------------------
+void StorageManager::savePricePerLitre(float price) {
+    Preferences prefs;
+    prefs.begin("pimisa", false);
+    prefs.putFloat("price_litre", price);
+    prefs.end();
+}
+
+// ---- loadLifetimeStats() ------------------------------------
+void StorageManager::loadLifetimeStats(float& totalLitres, uint32_t& totalCycles) {
+    Preferences prefs;
+    prefs.begin("pimisa", true);
+    totalLitres = prefs.getFloat("total_litres", 0.0f);
+    totalCycles = prefs.getUInt("pump_cycles", 0);
+    prefs.end();
+}
+
+// ---- saveLifetimeStats() ------------------------------------
+void StorageManager::saveLifetimeStats(float totalLitres, uint32_t totalCycles) {
+    Preferences prefs;
+    prefs.begin("pimisa", false);
+    prefs.putFloat("total_litres", totalLitres);
+    prefs.putUInt("pump_cycles", totalCycles);
+    prefs.end();
 }

@@ -88,7 +88,7 @@ static PumpController   pump;
 static KeypadManager    keypad;
 static DisplayManager   display;
 static VoucherManager   voucherMgr;
-static StorageManager   storage;
+StorageManager          storage;       // extern'd by HeartbeatService
 static HeartbeatService heartbeat;
 static SmsAlerts        smsAlerts;
 

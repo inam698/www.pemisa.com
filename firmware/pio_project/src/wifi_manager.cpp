@@ -17,9 +17,23 @@ void WifiManager::begin(const char* ssid, const char* password, unsigned long ti
   Serial.println("[WiFi] Initializing...");
   Serial.printf("[WiFi] SSID: %s\n", _ssid);
 
-  // Let WiFi.begin() handle mode setting — avoids duplicate init current spike
+  // ESP32 Arduino Core 3.x: Do NOT call WiFi.mode() explicitly.
+  // The framework pre-creates the STA netif; calling WiFi.mode(WIFI_STA)
+  // tries to re-create it, causing netstack error 12308.
   WiFi.setAutoReconnect(true);
-  delay(500);  // Let power stabilize before WiFi radio
+
+  // Quick scan to verify target network is visible
+  Serial.println("[WiFi] Scanning for networks...");
+  int n = WiFi.scanNetworks();
+  bool found = false;
+  for (int i = 0; i < n; i++) {
+    Serial.printf("  [%d] %s (%ddBm) ch%d\n", i, WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i));
+    if (WiFi.SSID(i) == _ssid) found = true;
+  }
+  if (!found && n > 0) {
+    Serial.printf("[WiFi] WARNING: '%s' not found in scan!\n", _ssid);
+  }
+  WiFi.scanDelete();
 
   _attemptConnection();
 }
@@ -44,7 +58,7 @@ void WifiManager::loop() {
 
   unsigned long now = millis();
   if (_state != WIFI_STATE_CONNECTING && (now - _lastAttemptMs >= _reconnectDelay)) {
-    _attemptConnection();
+    _attemptConnection(false);  // Non-blocking reconnect in loop
   }
 }
 
@@ -77,12 +91,13 @@ void WifiManager::reconnect() {
 
 // ─── Private Methods ────────────────────────────────────────────
 
-void WifiManager::_attemptConnection() {
+void WifiManager::_attemptConnection(bool blocking) {
   _state = WIFI_STATE_CONNECTING;
   _lastAttemptMs = millis();
   _retryCount++;
 
-  Serial.printf("[WiFi] Connecting (attempt %d)...\n", _retryCount);
+  Serial.printf("[WiFi] Connecting (attempt %d, %s)...\n",
+                _retryCount, blocking ? "blocking" : "non-blocking");
 
   // On retries, do a soft disconnect (no deinit) before reconnecting
   if (_retryCount > 1) {
@@ -91,23 +106,31 @@ void WifiManager::_attemptConnection() {
   }
   WiFi.begin(_ssid, _password);
 
-  // Block for initial connection attempt up to timeout
-  unsigned long startMs = millis();
-  while (WiFi.status() != WL_CONNECTED && (millis() - startMs) < _timeoutMs) {
-    delay(250);
-    Serial.print(".");
+  if (blocking) {
+    // Block for initial connection attempt up to timeout (used in setup only)
+    unsigned long startMs = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - startMs) < _timeoutMs) {
+      delay(250);
+      Serial.print(".");
+    }
+    Serial.println();
   }
-  Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
     _state = WIFI_STATE_CONNECTED;
     _retryCount = 0;
     _reconnectDelay = WIFI_RECONNECT_INTERVAL;
     Serial.printf("[WiFi] Connected! IP: %s\n", WiFi.localIP().toString().c_str());
-  } else {
+  } else if (blocking) {
+    // Only mark as failed immediately if we were blocking
     _state = WIFI_STATE_FAILED;
-    // Exponential backoff: 5s, 10s, 20s, 40s... max 60s
     _reconnectDelay = min(_reconnectDelay * 2, _maxReconnectDelay);
     Serial.printf("[WiFi] Failed. Next attempt in %lums\n", _reconnectDelay);
+  } else {
+    // Non-blocking: WiFi.begin() was called, connection happens in background.
+    // Next loop() call will check WiFi.status() and update state.
+    _state = WIFI_STATE_DISCONNECTED;
+    _reconnectDelay = min(_reconnectDelay * 2, _maxReconnectDelay);
+    Serial.printf("[WiFi] Reconnect initiated. Checking in %lums\n", _reconnectDelay);
   }
 }

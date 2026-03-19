@@ -123,8 +123,8 @@ void DisplayManager::showIdle() {
 // ---- showInput() --------------------------------------------
 void DisplayManager::showInput(const String& maskedCode) {
     // Only clear screen on first transition to INPUT mode
-    if (_mode != DisplayMode::INPUT) {
-        _mode        = DisplayMode::INPUT;
+    if (_mode != DisplayMode::ENTERING) {
+        _mode        = DisplayMode::ENTERING;
         _modeEnterMs = millis();
         _lcd.clear();
         _lcd.setCursor(0, 0);

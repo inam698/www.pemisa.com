@@ -18,7 +18,7 @@
 enum class DisplayMode : uint8_t {
     BOOT,
     IDLE,
-    INPUT,
+    ENTERING,
     VALIDATING,
     DISPENSING,
     COMPLETE,
