@@ -371,7 +371,7 @@ static void onKeyPress(char key) {
             case 'A':
                 LOGF("APP", "Mode selected: VOUCHER");
                 txnMode = TxnMode::VOUCHER;
-                transitionTo(AppState::VOUCHER_PHONE);
+                transitionTo(AppState::VOUCHER_CODE);
                 return;
             case 'B':
                 LOGF("APP", "Mode selected: CASH");

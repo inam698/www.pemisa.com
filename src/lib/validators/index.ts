@@ -88,9 +88,9 @@ export type VoucherQueryInput = z.infer<typeof voucherQuerySchema>;
 export const deviceVoucherVerifySchema = z.object({
   phone: z
     .string()
-    .min(1, "Phone number is required")
     .max(20, "Phone number too long")
-    .transform((v) => v.trim()),
+    .transform((v) => v.trim())
+    .optional(),
   voucher_code: z
     .string()
     .min(4, "Voucher code too short")

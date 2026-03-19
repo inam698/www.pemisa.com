@@ -80,7 +80,6 @@ bool VoucherManager::verify(const String& phone, const String& code) {
 
         // Build JSON body
         JsonDocument doc;
-        doc["phone"]        = phone;
         doc["voucher_code"] = code;
         doc["device_id"]    = DEVICE_ID;
 
