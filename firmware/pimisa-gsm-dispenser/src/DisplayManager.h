@@ -40,6 +40,7 @@ public:
 
     // ---- Screen setters ------------------------------------
     void showBoot();
+    void showConnecting();
     void showIdle();
     void showInput(const String& maskedCode);
     void showValidating();
@@ -67,6 +68,8 @@ private:
     unsigned long     _lastUpdateMs;
     unsigned long     _modeEnterMs;
     bool              _blinkState;
+    uint8_t           _idleScreen;       // 0,1,2 cycling idle screens
+    unsigned long     _idleScreenMs;     // when current idle screen started
 
     // Progress bar (16-char wide, chars 0-15)
     void drawProgressBar(int row, float percent);

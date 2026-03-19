@@ -330,9 +330,9 @@ static void handleBoot() {
         return;
     }
 
-    // Show GSM wait status periodically
+    // Show connecting screen while waiting for GSM
     if (elapsed > BOOT_SPLASH_MS) {
-        display.showMessage("Connecting GSM..", gsm.getStateName());
+        display.showConnecting();
     }
 }
 

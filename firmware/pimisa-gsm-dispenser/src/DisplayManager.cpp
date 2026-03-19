@@ -37,7 +37,9 @@ DisplayManager::DisplayManager()
       _mode(DisplayMode::BOOT),
       _lastUpdateMs(0),
       _modeEnterMs(0),
-      _blinkState(false)
+      _blinkState(false),
+      _idleScreen(0),
+      _idleScreenMs(0)
 {}
 
 // ---- begin() ------------------------------------------------
@@ -81,10 +83,27 @@ void DisplayManager::update() {
     // Toggle blink state for animated elements
     _blinkState = !_blinkState;
 
-    // Animate blinking cursor in IDLE mode
+    // Cycle idle screens every 3 seconds
     if (_mode == DisplayMode::IDLE) {
-        _lcd.setCursor(15, 1);
-        _lcd.print(_blinkState ? ">" : " ");
+        if (now - _idleScreenMs >= 3000UL) {
+            _idleScreenMs = now;
+            _idleScreen   = (_idleScreen + 1) % 3;
+            _lcd.clear();
+            switch (_idleScreen) {
+                case 0:
+                    _lcd.setCursor(0, 0); _lcd.print("  PIMISA  OIL   ");
+                    _lcd.setCursor(0, 1); _lcd.print(" www.pemisa.com ");
+                    break;
+                case 1:
+                    _lcd.setCursor(0, 0); _lcd.print("A=Voucher       ");
+                    _lcd.setCursor(0, 1); _lcd.print("B=Cash C=Litres ");
+                    break;
+                case 2:
+                    _lcd.setCursor(0, 0); _lcd.print("Press A: Voucher");
+                    _lcd.setCursor(0, 1); _lcd.print("Press B: Cash   ");
+                    break;
+            }
+        }
     }
 }
 
@@ -107,16 +126,31 @@ void DisplayManager::showBoot() {
     LOG("LCD", "Screen: BOOT");
 }
 
-// ---- showIdle() ---------------------------------------------
-void DisplayManager::showIdle() {
-    _mode        = DisplayMode::IDLE;
+// ---- showConnecting() ---------------------------------------
+void DisplayManager::showConnecting() {
+    _mode        = DisplayMode::BOOT;
     _modeEnterMs = millis();
 
     _lcd.clear();
     _lcd.setCursor(0, 0);
-    _lcd.print("A=Voucher B=Cash");
+    _lcd.print("Connecting to   ");
     _lcd.setCursor(0, 1);
-    _lcd.print("C=Litres  D=Sig ");
+    _lcd.print("Internet...     ");
+    LOG("LCD", "Screen: CONNECTING");
+}
+
+// ---- showIdle() ---------------------------------------------
+void DisplayManager::showIdle() {
+    _mode         = DisplayMode::IDLE;
+    _modeEnterMs  = millis();
+    _idleScreen   = 0;
+    _idleScreenMs = millis();
+
+    _lcd.clear();
+    _lcd.setCursor(0, 0);
+    _lcd.print("  PIMISA  OIL   ");
+    _lcd.setCursor(0, 1);
+    _lcd.print(" www.pemisa.com ");
     LOG("LCD", "Screen: IDLE");
 }
 
