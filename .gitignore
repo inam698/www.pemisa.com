@@ -35,3 +35,6 @@ prisma/dev.db-journal
 logs/*.log
 .vercel
 .env*.local
+
+# PlatformIO build artifacts
+firmware/**/.pio/
