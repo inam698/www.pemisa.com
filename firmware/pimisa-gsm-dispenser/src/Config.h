@@ -106,6 +106,9 @@
 #define MAX_OFFLINE_QUEUE   20    // Max pending transactions
 #define PREFS_NAMESPACE     "pimisa"
 
+// ---- Operator PIN ------------------------------------------
+#define OPERATOR_PIN_CODE   "1"        // PIN required for cash/litres sales
+
 // ---- System Timing -----------------------------------------
 #define IDLE_TIMEOUT_MS     30000UL   // Return to IDLE after inactivity
 #define DISPLAY_UPDATE_MS   300UL     // LCD refresh rate

@@ -37,6 +37,7 @@ enum class AppState : uint8_t {
     VOUCHER_CODE,       // Enter voucher code
     VALIDATING,         // Waiting for server/cache response
     APPROVED,           // Show voucher details, confirm to dispense
+    OPERATOR_PIN,       // Enter operator PIN before cash/litres
     CASH_AMOUNT,        // Enter amount in ZMW
     BUY_LITRES,         // Enter litres directly
     CONFIRM_DISPENSE,   // Confirm before pumping
@@ -57,6 +58,7 @@ static const char* appStateName(AppState s) {
         case AppState::VOUCHER_CODE:    return "VOUCHER_CODE";
         case AppState::VALIDATING:      return "VALIDATING";
         case AppState::APPROVED:        return "APPROVED";
+        case AppState::OPERATOR_PIN:    return "OPERATOR_PIN";
         case AppState::CASH_AMOUNT:     return "CASH_AMOUNT";
         case AppState::BUY_LITRES:      return "BUY_LITRES";
         case AppState::CONFIRM_DISPENSE:return "CONFIRM_DISPENSE";
@@ -136,6 +138,7 @@ static void handleVoucherPhone();
 static void handleVoucherCode();
 static void handleValidating();
 static void handleApproved();
+static void handleOperatorPin();
 static void handleCashAmount();
 static void handleBuyLitres();
 static void handleConfirmDispense();
@@ -266,6 +269,7 @@ void loop() {
         case AppState::VOUCHER_CODE:    handleVoucherCode();    break;
         case AppState::VALIDATING:      handleValidating();     break;
         case AppState::APPROVED:        handleApproved();       break;
+        case AppState::OPERATOR_PIN:    handleOperatorPin();    break;
         case AppState::CASH_AMOUNT:     handleCashAmount();     break;
         case AppState::BUY_LITRES:      handleBuyLitres();      break;
         case AppState::CONFIRM_DISPENSE:handleConfirmDispense();break;
@@ -374,14 +378,14 @@ static void onKeyPress(char key) {
                 transitionTo(AppState::VOUCHER_CODE);
                 return;
             case 'B':
-                LOGF("APP", "Mode selected: CASH");
+                LOGF("APP", "Mode selected: CASH (PIN required)");
                 txnMode = TxnMode::CASH;
-                transitionTo(AppState::CASH_AMOUNT);
+                transitionTo(AppState::OPERATOR_PIN);
                 return;
             case 'C':
-                LOGF("APP", "Mode selected: BUY_LITRES");
+                LOGF("APP", "Mode selected: BUY_LITRES (PIN required)");
                 txnMode = TxnMode::BUY_LITRES;
-                transitionTo(AppState::BUY_LITRES);
+                transitionTo(AppState::OPERATOR_PIN);
                 return;
             case 'D':
                 // D key = show network status
@@ -407,6 +411,7 @@ static void onKeyPress(char key) {
         switch (appState) {
             case AppState::VOUCHER_PHONE:
             case AppState::VOUCHER_CODE:
+            case AppState::OPERATOR_PIN:
             case AppState::CASH_AMOUNT:
             case AppState::BUY_LITRES:
             case AppState::APPROVED:
@@ -431,6 +436,9 @@ static void onKeyPress(char key) {
         case AppState::VOUCHER_CODE:
             display.showInput(keypad.getBuffer());
             break;
+        case AppState::OPERATOR_PIN:
+            display.showInput(keypad.getBuffer());
+            break;
         case AppState::CASH_AMOUNT:
             display.showInput(keypad.getBuffer());
             break;
@@ -448,6 +456,25 @@ static void onConfirm(const String& buffer) {
          buffer.c_str(), appStateName(appState));
 
     switch (appState) {
+        // ---- Operator PIN entry -----------------------------
+        case AppState::OPERATOR_PIN: {
+            if (buffer != String(OPERATOR_PIN_CODE)) {
+                LOG("APP", "Wrong PIN");
+                display.showError("Wrong PIN");
+                keypad.clearBuffer();
+                transitionTo(AppState::ERROR);
+                return;
+            }
+            LOG("APP", "PIN correct - proceeding");
+            keypad.clearBuffer();
+            if (txnMode == TxnMode::CASH) {
+                transitionTo(AppState::CASH_AMOUNT);
+            } else {
+                transitionTo(AppState::BUY_LITRES);
+            }
+            break;
+        }
+
         // ---- Voucher phone entry ----------------------------
         case AppState::VOUCHER_PHONE: {
             if (buffer.length() < 6) {
@@ -691,6 +718,27 @@ static void handleApproved() {
     // Idle timeout
     if (keypad.isIdle()) {
         LOG("APP", "Approval timeout - returning to IDLE");
+        transitionTo(AppState::IDLE);
+    }
+}
+
+// ============================================================
+// OPERATOR_PIN State - Enter PIN before cash/litres sale
+// ============================================================
+static void handleOperatorPin() {
+    if (prevAppState != AppState::OPERATOR_PIN) {
+        prevAppState = AppState::OPERATOR_PIN;
+        keypad.clearBuffer();
+        keypad.setEnabled(true);
+        display.showMessage("Enter PIN:", "#=OK *=Cancel");
+    }
+
+    if (keypad.getBuffer().length() > 0) {
+        display.showInput(keypad.getBuffer());
+    }
+
+    if (keypad.isIdle()) {
+        LOG("APP", "PIN timeout - returning to IDLE");
         transitionTo(AppState::IDLE);
     }
 }
