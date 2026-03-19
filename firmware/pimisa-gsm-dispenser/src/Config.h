@@ -36,7 +36,7 @@
 // If using relay: PUMP_ACTIVE_HIGH = true
 // If using MOSFET (N-channel, gate tied to GPIO): PUMP_ACTIVE_HIGH = true
 #define PUMP_PIN            4
-#define PUMP_ACTIVE_HIGH    true
+#define PUMP_ACTIVE_HIGH    false
 #define PUMP_MAX_ON_MS      90000UL  // Safety cutoff: 90 seconds
 #define MAX_DISPENSE_ML     2000.0f  // Max 2 litres per transaction
 #define MIN_DISPENSE_ML     50.0f    // Minimum 50ml per dispense
