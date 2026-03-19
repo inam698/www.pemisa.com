@@ -27,10 +27,10 @@ static void buzzClick() {
 // ---- Keypad layout ------------------------------------------
 // Standard 4x4 membrane keypad layout
 const char KeypadManager::_keys[KEYPAD_ROWS][KEYPAD_COLS] = {
-    {'1', '2', '3', 'A'},
-    {'4', '5', '6', 'B'},
-    {'7', '8', '9', 'C'},
-    {'*', '0', '#', 'D'}
+    {'1', '4', '7', '*'},
+    {'2', '5', '8', '0'},
+    {'3', '6', '9', '#'},
+    {'A', 'B', 'C', 'D'}
 };
 
 byte KeypadManager::_rowPins[KEYPAD_ROWS] = {KP_R1, KP_R2, KP_R3, KP_R4};

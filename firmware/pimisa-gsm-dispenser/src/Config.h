@@ -35,14 +35,14 @@
 // ---- Pump Control (Relay / MOSFET) -------------------------
 // If using relay: PUMP_ACTIVE_HIGH = true
 // If using MOSFET (N-channel, gate tied to GPIO): PUMP_ACTIVE_HIGH = true
-#define PUMP_PIN            26
+#define PUMP_PIN            4
 #define PUMP_ACTIVE_HIGH    true
 #define PUMP_MAX_ON_MS      90000UL  // Safety cutoff: 90 seconds
 #define MAX_DISPENSE_ML     2000.0f  // Max 2 litres per transaction
 #define MIN_DISPENSE_ML     50.0f    // Minimum 50ml per dispense
 
 // ---- Buzzer (optional) -------------------------------------
-#define BUZZER_PIN          27
+#define BUZZER_PIN          23
 #define BUZZER_ENABLED      true
 #define BUZZ_SHORT_MS       100
 #define BUZZ_LONG_MS        500
@@ -52,15 +52,15 @@
 #define KEYPAD_ROWS         4
 #define KEYPAD_COLS         4
 // Row pins (driven as output)
-#define KP_R1               32
-#define KP_R2               33
-#define KP_R3               25
+#define KP_R1               27
+#define KP_R2               14
+#define KP_R3               12
 #define KP_R4               13
 // Column pins (read as input with pull-up)
-#define KP_C1               12
-#define KP_C2               14
-#define KP_C3               15
-#define KP_C4               2
+#define KP_C1               32
+#define KP_C2               33
+#define KP_C3               25
+#define KP_C4               26
 #define KEYPAD_MAX_LEN      12   // Maximum voucher code length
 #define KEYPAD_DEBOUNCE_MS  50
 

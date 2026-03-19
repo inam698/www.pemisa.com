@@ -83,28 +83,6 @@ void DisplayManager::update() {
     // Toggle blink state for animated elements
     _blinkState = !_blinkState;
 
-    // Cycle idle screens every 3 seconds
-    if (_mode == DisplayMode::IDLE) {
-        if (now - _idleScreenMs >= 3000UL) {
-            _idleScreenMs = now;
-            _idleScreen   = (_idleScreen + 1) % 3;
-            _lcd.clear();
-            switch (_idleScreen) {
-                case 0:
-                    _lcd.setCursor(0, 0); _lcd.print("  PIMISA  OIL   ");
-                    _lcd.setCursor(0, 1); _lcd.print(" www.pemisa.com ");
-                    break;
-                case 1:
-                    _lcd.setCursor(0, 0); _lcd.print("A=Voucher       ");
-                    _lcd.setCursor(0, 1); _lcd.print("B=Cash C=Litres ");
-                    break;
-                case 2:
-                    _lcd.setCursor(0, 0); _lcd.print("Press A: Voucher");
-                    _lcd.setCursor(0, 1); _lcd.print("Press B: Cash   ");
-                    break;
-            }
-        }
-    }
 }
 
 // ============================================================
@@ -141,16 +119,14 @@ void DisplayManager::showConnecting() {
 
 // ---- showIdle() ---------------------------------------------
 void DisplayManager::showIdle() {
-    _mode         = DisplayMode::IDLE;
-    _modeEnterMs  = millis();
-    _idleScreen   = 0;
-    _idleScreenMs = millis();
+    _mode        = DisplayMode::IDLE;
+    _modeEnterMs = millis();
 
     _lcd.clear();
     _lcd.setCursor(0, 0);
-    _lcd.print("  PIMISA  OIL   ");
+    _lcd.print("A=Voucher       ");
     _lcd.setCursor(0, 1);
-    _lcd.print(" www.pemisa.com ");
+    _lcd.print("B=Cash C=Litres ");
     LOG("LCD", "Screen: IDLE");
 }
 
