@@ -114,9 +114,9 @@ void DisplayManager::showIdle() {
 
     _lcd.clear();
     _lcd.setCursor(0, 0);
-    _lcd.print("Enter voucher:  ");
+    _lcd.print("A=Voucher B=Cash");
     _lcd.setCursor(0, 1);
-    _lcd.print("                ");
+    _lcd.print("C=Litres  D=Sig ");
     LOG("LCD", "Screen: IDLE");
 }
 

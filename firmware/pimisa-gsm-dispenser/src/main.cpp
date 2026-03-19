@@ -968,11 +968,10 @@ static void reportTransaction() {
             if (gsm.isReady()) {
                 // Build JSON and POST directly
                 StaticJsonDocument<256> doc;
-                doc["type"]       = txn.type;
-                doc["deviceId"]   = DEVICE_ID;
-                doc["litres"]     = dispensedL;
-                doc["amount"]     = txnAmount;
-                doc["timestamp"]  = txn.timestamp;
+                doc["device_id"]          = DEVICE_ID;
+                doc["transaction_type"]   = "purchase";
+                doc["oil_ml_dispensed"]   = (int)(dispensedMl);
+                doc["payment_amount"]     = txnAmount;
 
                 String jsonBody;
                 serializeJson(doc, jsonBody);
