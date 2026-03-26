@@ -16,16 +16,31 @@
 #define CONFIG_H
 
 // ─── WiFi Configuration ─────────────────────────────────────────
-#define WIFI_SSID           "TP-LINK_4B74"
-#define WIFI_PASSWORD       "73005780"
-#define WIFI_CONNECT_TIMEOUT_MS  15000   // Max time to wait for WiFi
-#define WIFI_RECONNECT_INTERVAL  5000    // Retry interval on disconnect
+#define WIFI_ENABLED            true
+#define WIFI_SSID_DEFAULT       ""      // Empty = must be entered via keypad or NVS
+#define WIFI_PASSWORD_DEFAULT   ""
+#define WIFI_CONNECT_TIMEOUT_MS 8000    // Max time to wait for WiFi (reduced from 15s)
+#define WIFI_RECONNECT_INTERVAL 3000    // Retry interval on disconnect (reduced from 5s)
+
+// ─── GSM / SIM800L Configuration ────────────────────────────────
+#define GSM_ENABLED         true
+#define GSM_TX_PIN          17     // ESP32 TX → SIM800L RX
+#define GSM_RX_PIN          16     // ESP32 RX → SIM800L TX
+#define GSM_RST_PIN         5      // SIM800L reset pin
+#define GSM_BAUD            9600   // SIM800L UART baud rate
+#define GSM_APN             "internet"  // Mobile network APN
+#define GSM_CONNECT_TIMEOUT_MS  20000   // Max time to wait for GPRS (reduced from 30s)
+#define GSM_RECONNECT_INTERVAL  3000    // Retry interval on disconnect (reduced from 5s)
+
+// ─── Connectivity Preference ────────────────────────────────────
+// 0 = WiFi first (faster, free), 1 = GSM first
+#define DEFAULT_CONN_PREFERENCE 0
 
 // ─── Pimisa Cloud Server ────────────────────────────────────────
 #define SERVER_BASE_URL     "https://pimisa-voucher-system.vercel.app"
-#define API_TIMEOUT_MS      10000  // HTTP request timeout
+#define API_TIMEOUT_MS      6000   // HTTP request timeout (reduced from 10s)
 #define API_MAX_RETRIES     3      // Number of retry attempts
-#define API_RETRY_DELAY_MS  2000   // Base delay between retries
+#define API_RETRY_DELAY_MS  1000   // Base delay between retries (reduced from 2s)
 
 // ─── Device Credentials (from admin dashboard) ──────────────────
 // Machine: Oil Dispenser #1 — Lusaka Station 1
@@ -36,7 +51,7 @@
 // ─── Hardware Pins ──────────────────────────────────────────────
 #define FLOW_SENSOR_PIN     4      // Flow sensor signal pin (interrupt-capable)
 #define PUMP_RELAY_PIN      23     // Relay controlling the 12V oil pump
-#define KEYPAD_ROW_PINS     {27, 14, 12, 13}  // 4x4 keypad row pins
+#define KEYPAD_ROW_PINS     {27, 14, 12, 13}  // 4x4 keypad row pins (transposed wiring)
 #define KEYPAD_COL_PINS     {32, 33, 25, 26}  // 4x4 keypad column pins
 #define LCD_I2C_ADDR        0x27   // I2C address for 16x2 LCD
 #define LCD_COLS            16
@@ -48,7 +63,7 @@
 // Pulses per litre - MUST be calibrated for your specific sensor.
 // AICHI OF05ZAT: ~2174 pulses/litre (typical)
 // YF-S201:       ~450 pulses/litre (typical)
-#define PULSES_PER_LITRE    450.0f
+#define PULSES_PER_LITRE    177.0f
 #define FLOW_TOLERANCE      0.02f  // ±20ml tolerance
 
 // ─── Oil Price Configuration ────────────────────────────────────
@@ -87,7 +102,7 @@
 // ─── SSL/TLS Configuration ──────────────────────────────────
 // Set to true in production to verify server certificate.
 // When true, the root CA cert below is used to validate the server.
-#define SSL_VERIFY_SERVER    true
+#define SSL_VERIFY_SERVER    false
 
 // Let's Encrypt ISRG Root X1 — used by Vercel/most HTTPS hosts.
 // Expires: Mon, 04 Jun 2035. Replace if your server uses a different CA.

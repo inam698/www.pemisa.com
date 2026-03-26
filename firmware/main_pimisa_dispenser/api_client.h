@@ -3,6 +3,7 @@
  * ║  PIMISA IoT OIL DISPENSER - API Client Module              ║
  * ║                                                              ║
  * ║  HTTP client for communicating with Pimisa cloud server.    ║
+ * ║  Dual transport: WiFi (HTTPClient) or GSM (SIM800L AT).    ║
  * ║  Handles authentication, retries, and JSON payloads.        ║
  * ╚══════════════════════════════════════════════════════════════╝
  */
@@ -12,6 +13,9 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+
+// Forward declarations
+class ConnectivityManager;
 
 // ─── API Response Structure ─────────────────────────────────────
 
@@ -31,8 +35,10 @@ public:
    * @param baseUrl   Server URL, e.g., "https://pimisa.example.com"
    * @param deviceId  Machine device ID, e.g., "DISP-A1B2-C3D4"
    * @param apiKey    Machine API key from admin dashboard
+   * @param conn      Pointer to ConnectivityManager for transport selection
    */
-  void begin(const char* baseUrl, const char* deviceId, const char* apiKey);
+  void begin(const char* baseUrl, const char* deviceId, const char* apiKey,
+             ConnectivityManager* conn = nullptr);
 
   /**
    * Send a POST request with JSON body.
@@ -59,12 +65,17 @@ private:
   String _baseUrl;
   String _deviceId;
   String _apiKey;
+  ConnectivityManager* _conn = nullptr;
   unsigned long _timeoutMs = 10000;
   uint8_t _maxRetries = 3;
   unsigned long _retryDelayMs = 2000;
 
   ApiResponse _executeRequest(const char* method, const char* endpoint,
                                const String* body = nullptr);
+  ApiResponse _executeViaWifi(const char* method, const String& url,
+                               const String* body);
+  ApiResponse _executeViaGsm(const char* method, const String& url,
+                              const String* body);
 };
 
 #endif // API_CLIENT_H

@@ -51,8 +51,8 @@ public:
   void reconnect();
 
 private:
-  const char* _ssid = nullptr;
-  const char* _password = nullptr;
+  String _ssid;
+  String _password;
   unsigned long _timeoutMs = 15000;
   unsigned long _lastAttemptMs = 0;
   unsigned long _reconnectDelay = 5000;
@@ -60,7 +60,7 @@ private:
   WifiState _state = WIFI_STATE_DISCONNECTED;
   uint8_t _retryCount = 0;
 
-  void _attemptConnection();
+  void _attemptConnection(bool blocking = true);
 };
 
 #endif // WIFI_MANAGER_H

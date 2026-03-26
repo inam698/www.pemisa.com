@@ -173,6 +173,34 @@ void NvsStorage::resetErrorCount() {
   _prefs.putUInt("error_count", 0);
 }
 
+// ─── WiFi Credentials ───────────────────────────────────────────
+
+void NvsStorage::setWifiSSID(const String& ssid) {
+  _prefs.putString("wifi_ssid", ssid);
+}
+
+String NvsStorage::getWifiSSID(const String& defaultVal) {
+  return _prefs.getString("wifi_ssid", defaultVal);
+}
+
+void NvsStorage::setWifiPassword(const String& password) {
+  _prefs.putString("wifi_pass", password);
+}
+
+String NvsStorage::getWifiPassword(const String& defaultVal) {
+  return _prefs.getString("wifi_pass", defaultVal);
+}
+
+// ─── Connectivity Preference ────────────────────────────────────
+
+void NvsStorage::setConnPreference(int pref) {
+  _prefs.putInt("conn_pref", pref);
+}
+
+int NvsStorage::getConnPreference(int defaultVal) {
+  return _prefs.getInt("conn_pref", defaultVal);
+}
+
 // ─── OTA State ──────────────────────────────────────────────────
 
 void NvsStorage::setLastFirmwareVersion(const String& version) {

@@ -10,7 +10,8 @@
  * ║    • 12V oil pump relay on PUMP_RELAY_PIN                           ║
  * ║    • 4×4 keypad (matrix)                                            ║
  * ║    • 16×2 I2C LCD                                                   ║
- * ║    • WiFi connectivity to Pimisa cloud                              ║
+ * ║    • WiFi + GSM/GPRS dual connectivity with auto-failover          ║
+ * ║    • SIM800L module for GSM/GPRS backup                           ║
  * ║                                                                      ║
  * ║  FEATURES:                                                           ║
  * ║    1. Voucher mode — cloud-verified voucher codes                   ║
@@ -33,7 +34,7 @@
  *   Pump Relay   → GPIO 26
  *   LCD SDA      → GPIO 21 (default I2C)
  *   LCD SCL      → GPIO 22 (default I2C)
- *   Keypad rows  → GPIO 13, 12, 14, 25
+ *   Keypad rows  → GPIO 27, 14, 15, 13
  *   Keypad cols  → GPIO 33, 32, 18, 19
  */
 
@@ -45,16 +46,25 @@
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 #include <esp_task_wdt.h>
+#include <esp_idf_version.h>
 
 // Pimisa IoT modules
 #include "config.h"
 #include "wifi_manager.h"
+#include "gsm_manager.h"
+#include "connectivity_manager.h"
 #include "api_client.h"
 #include "voucher_service.h"
 #include "sales_reporting.h"
 #include "heartbeat_service.h"
 #include "ota_manager.h"
 #include "nvs_storage.h"
+#include "keypad_input.h"
+
+#include <nvs_flash.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 
 // ═══════════════════════════════════════════════════════════════════════
 //  HARDWARE SETUP
@@ -93,13 +103,14 @@ unsigned long pumpStartTime = 0;
 //  PIMISA IoT SERVICE OBJECTS
 // ═══════════════════════════════════════════════════════════════════════
 
-WifiManager wifiManager;
+ConnectivityManager connManager;
 ApiClient apiClient;
 VoucherService voucherService;
 SalesReporting salesReporting;
 HeartbeatService heartbeatService;
 OtaManager otaManager;
 NvsStorage nvsStorage;
+KeypadInput keypadInput;
 
 // Adaptive timing (server-controlled)
 unsigned long heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS;
@@ -127,6 +138,15 @@ enum DispenserState {
   STATE_DISPENSING,          // Pump running, counting litres
   STATE_COMPLETE,            // Transaction finished
   STATE_ERROR,               // Error state with message
+  // ── Settings / WiFi Setup ──────────────────────────────
+  STATE_SETTINGS,            // Settings menu: A=WiFi B=Pref C=Info
+  STATE_WIFI_SCAN,           // Scanning for WiFi networks
+  STATE_WIFI_SELECT,         // Scrolling through found networks
+  STATE_WIFI_SSID_ENTRY,     // Manual SSID entry (multi-tap)
+  STATE_WIFI_PASSWORD,       // Password entry (multi-tap)
+  STATE_WIFI_CONNECTING,     // Attempting WiFi connection
+  STATE_CONN_PREFERENCE,     // Choose WiFi-first or GSM-first
+  STATE_CONN_INFO,           // Show connection info
 };
 
 DispenserState currentState = STATE_IDLE;
@@ -146,6 +166,14 @@ unsigned long stateEnteredMs = 0;
 unsigned long lastLcdUpdateMs = 0;
 const unsigned long LCD_UPDATE_INTERVAL = 250; // 4 FPS LCD refresh during dispensing
 unsigned long lastFlowCheckMs = 0;
+
+// WiFi scan results (for STATE_WIFI_SELECT)
+#define MAX_WIFI_SCAN_RESULTS 10
+String wifiScanSSIDs[MAX_WIFI_SCAN_RESULTS];
+int    wifiScanRSSI[MAX_WIFI_SCAN_RESULTS];
+int    wifiScanCount = 0;
+int    wifiSelectIndex = 0;
+String wifiSelectedSSID = "";
 
 // ═══════════════════════════════════════════════════════════════════════
 //  SETUP
@@ -182,49 +210,80 @@ void setup() {
   pinMode(OIL_LEVEL_PIN, INPUT);
   pinMode(TEMP_SENSOR_PIN, INPUT);
 
+  // Keypad: set debounce to suppress ghost/phantom key presses
+  keypad.setDebounceTime(150);   // 150ms debounce (aggressive — GPIO 12 & DAC pins are noisy)
+  keypad.setHoldTime(800);       // 800ms hold threshold
+
+  // Enable internal pull-ups on BOTH row and column pins to prevent floating/ghost presses
+  // GPIO 12 (row) is a bootstrap pin with internal pull-down — needs explicit pull-up
+  // GPIO 25, 26 (cols) are DAC pins with leakage — need pull-ups too
+  for (int i = 0; i < ROWS; i++) {
+    pinMode(rowPins[i], INPUT_PULLUP);
+  }
+  for (int i = 0; i < COLS; i++) {
+    pinMode(colPins[i], INPUT_PULLUP);
+  }
+
   // ── Initialize hardware watchdog timer ─────────────────────────
   // Resets ESP32 if loop() hangs for WDT_TIMEOUT_SECONDS.
-  // ESP32 Arduino Core v3.x pre-initializes TWDT, so we reconfigure it.
+  // ESP32 Arduino Core v3.x (ESP-IDF 5.x) pre-initializes TWDT with
+  // different API — use version guard for compatibility.
+  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
   const esp_task_wdt_config_t wdt_config = {
     .timeout_ms = WDT_TIMEOUT_SECONDS * 1000,
-    .idle_core_mask = 0,        // Don't watch idle tasks
-    .trigger_panic = true,      // Reset on timeout
+    .idle_core_mask = 0,
+    .trigger_panic = true,
   };
   esp_task_wdt_reconfigure(&wdt_config);
-  esp_task_wdt_add(NULL); // Subscribe current task (loopTask)
+  esp_task_wdt_add(NULL);
+  #else
+  esp_task_wdt_init(WDT_TIMEOUT_SECONDS, true);
+  esp_task_wdt_add(NULL);
+  #endif
   Serial.printf("[Setup] Watchdog timer enabled: %ds timeout\n", WDT_TIMEOUT_SECONDS);
 
-  // ── Initialize WiFi ────────────────────────────────────────────
+  // ── Initialize NVS (erase if corrupted, then open) ─────────────
+  #if NVS_ENABLED
+  {
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+      Serial.println("[NVS] Partition full/corrupted — erasing...");
+      nvs_flash_erase();
+      nvs_flash_init();
+    }
+  }
+  nvsStorage.begin();
+  #endif
+
+  // ── Initialize dual connectivity (WiFi + GSM) ────────────────
   lcd.setCursor(0, 1);
-  lcd.print("Connecting WiFi.");
+  lcd.print("Connecting...   ");
 
-  wifiManager.begin(WIFI_SSID, WIFI_PASSWORD, WIFI_CONNECT_TIMEOUT_MS);
+  connManager.begin(&nvsStorage);
 
-  if (wifiManager.isConnected()) {
+  if (connManager.isConnected()) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("WiFi Connected!");
+    lcd.printf("%s Connected!", connManager.getTransportName().c_str());
     lcd.setCursor(0, 1);
-    lcd.print(wifiManager.getIPAddress());
+    lcd.printf("Signal: %ddBm", connManager.getRSSI());
     delay(1500);
   } else {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("WiFi Failed");
+    lcd.print("No Connection");
     lcd.setCursor(0, 1);
     lcd.print("Offline mode...");
     delay(2000);
   }
 
   // ── Initialize IoT services ────────────────────────────────────
-  apiClient.begin(SERVER_BASE_URL, DEVICE_ID, API_KEY);
+  apiClient.begin(SERVER_BASE_URL, DEVICE_ID, API_KEY, &connManager);
   apiClient.setTimeout(API_TIMEOUT_MS);
   apiClient.setRetry(API_MAX_RETRIES, API_RETRY_DELAY_MS);
 
-  // ── Initialize NVS persistent storage ──────────────────────────
+  // ── Restore server-pushed config from NVS ─────────────────────
   #if NVS_ENABLED
-  nvsStorage.begin();
-  // Restore server-pushed config from NVS
   pricePerLitre = nvsStorage.getPricePerLitre(DEFAULT_PRICE_PER_LITRE);
   heartbeatIntervalMs = (unsigned long)nvsStorage.getHeartbeatInterval(HEARTBEAT_INTERVAL_MS / 1000) * 1000UL;
   configVersion = nvsStorage.getConfigVersion(0);
@@ -237,7 +296,7 @@ void setup() {
   heartbeatService.begin(&apiClient, DEVICE_ID, heartbeatIntervalMs);
 
   // Send initial heartbeat
-  if (wifiManager.isConnected()) {
+  if (connManager.isConnected()) {
     heartbeatService.sendNow();
   }
 
@@ -249,6 +308,14 @@ void setup() {
 //  FORWARD DECLARATIONS
 // ═══════════════════════════════════════════════════════════════════════
 void changeState(DispenserState newState);
+void handleSettingsState(char key);
+void handleWifiScanState(char key);
+void handleWifiSelectState(char key);
+void handleWifiSsidEntryState(char key);
+void handleWifiPasswordState(char key);
+void handleWifiConnectingState(char key);
+void handleConnPreferenceState(char key);
+void handleConnInfoState(char key);
 
 // ═══════════════════════════════════════════════════════════════════════
 //  MAIN LOOP
@@ -258,8 +325,8 @@ void loop() {
   // ── Feed watchdog to prevent reset ─────────────────────────────
   esp_task_wdt_reset();
 
-  // ── Maintain WiFi connection ───────────────────────────────────
-  wifiManager.loop();
+  // ── Maintain dual connectivity (WiFi + GSM) ───────────────────
+  connManager.loop();
 
   // ── Read sensors and update heartbeat data ──────────────────────
   if (millis() - lastSensorReadMs >= SENSOR_READ_INTERVAL_MS) {
@@ -269,7 +336,10 @@ void loop() {
   }
 
   // ── Send heartbeats & process offline queues ───────────────────
-  if (wifiManager.isConnected()) {
+  // Skip all HTTP operations while pump is running — blocking network
+  // calls (up to API_TIMEOUT_MS) would prevent the keypad from being
+  // read and make the * emergency-stop key unresponsive.
+  if (connManager.isConnected() && !pumpRunning) {
     heartbeatService.loop();
     salesReporting.processOfflineQueue();
     voucherService.processOfflineRedemptions();
@@ -283,8 +353,21 @@ void loop() {
     #endif
   }
 
-  // ── Read keypad ────────────────────────────────────────────────
-  char key = keypad.getKey();
+  // ── Read keypad (with debounce) ──────────────────────────────
+  static unsigned long lastKeyMs = 0;
+  char key = 0;
+  char rawKey = keypad.getKey();
+
+  if (rawKey) {
+    unsigned long now = millis();
+    if (now - lastKeyMs >= 150) {  // 150ms debounce
+      key = rawKey;
+      lastKeyMs = now;
+    }
+  }
+
+  // ── Tick multi-tap input timer ────────────────────────────────
+  keypadInput.tick();
 
   // ── State machine ─────────────────────────────────────────────
   switch (currentState) {
@@ -317,6 +400,31 @@ void loop() {
       break;
     case STATE_ERROR:
       handleErrorState(key);
+      break;
+    // ── Settings / WiFi Setup states ────────────────────────
+    case STATE_SETTINGS:
+      handleSettingsState(key);
+      break;
+    case STATE_WIFI_SCAN:
+      handleWifiScanState(key);
+      break;
+    case STATE_WIFI_SELECT:
+      handleWifiSelectState(key);
+      break;
+    case STATE_WIFI_SSID_ENTRY:
+      handleWifiSsidEntryState(key);
+      break;
+    case STATE_WIFI_PASSWORD:
+      handleWifiPasswordState(key);
+      break;
+    case STATE_WIFI_CONNECTING:
+      handleWifiConnectingState(key);
+      break;
+    case STATE_CONN_PREFERENCE:
+      handleConnPreferenceState(key);
+      break;
+    case STATE_CONN_INFO:
+      handleConnInfoState(key);
       break;
   }
 
@@ -359,14 +467,15 @@ void handleIdleState(char key) {
     lcd.print("PIMISA DISPENSER");
     lcd.setCursor(0, 1);
 
-    // Show connection status
-    if (wifiManager.isConnected()) {
+    // Show connection status with active transport
+    if (connManager.isConnected()) {
       uint8_t queued = salesReporting.getQueuedCount();
       int pendingRedeem = voucherService.getPendingRedemptionCount();
+      String transport = connManager.getTransportName();
       if (queued > 0 || pendingRedeem > 0) {
-        lcd.printf("Online Q:%d  #=Go", queued + pendingRedeem);
+        lcd.printf("%s Q:%d #=Go", transport.c_str(), queued + pendingRedeem);
       } else {
-        lcd.print("Online     #=Go");
+        lcd.printf("%s      #=Go", transport.c_str());
       }
     } else {
       int cached = voucherService.getCachedVoucherCount();
@@ -380,6 +489,8 @@ void handleIdleState(char key) {
 
   if (key == '#') {
     changeState(STATE_SELECT_MODE);
+  } else if (key == 'D') {
+    changeState(STATE_SETTINGS);
   }
 }
 
@@ -923,15 +1034,15 @@ float readTemperature() {
 //       HeartbeatService heartbeatService;
 //
 //  3. In your setup(), add after hardware init:
-//       wifiManager.begin(WIFI_SSID, WIFI_PASSWORD, WIFI_CONNECT_TIMEOUT_MS);
-//       apiClient.begin(SERVER_BASE_URL, DEVICE_ID, API_KEY);
+//       connManager.begin(&nvsStorage);
+//       apiClient.begin(SERVER_BASE_URL, DEVICE_ID, API_KEY, &connManager);
 //       voucherService.begin(&apiClient, DEVICE_ID);
 //       salesReporting.begin(&apiClient, DEVICE_ID, DEFAULT_PRICE_PER_LITRE);
 //       heartbeatService.begin(&apiClient, DEVICE_ID, HEARTBEAT_INTERVAL_MS);
 //
 //  4. In your loop(), add:
-//       wifiManager.loop();
-//       if (wifiManager.isConnected()) {
+//       connManager.loop();
+//       if (connManager.isConnected()) {
 //         heartbeatService.loop();
 //         salesReporting.processOfflineQueue();
 //       }
@@ -1002,6 +1113,326 @@ void uploadNvsSales() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+//  SETTINGS / WIFI SETUP STATE HANDLERS
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── SETTINGS MENU ────────────────────────────────────────────────────
+
+void handleSettingsState(char key) {
+  if (previousState != STATE_SETTINGS) {
+    previousState = STATE_SETTINGS;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("A=WiFi  B=Pref");
+    lcd.setCursor(0, 1);
+    lcd.print("C=Info  *=Back");
+  }
+
+  if (key == 'A') {
+    changeState(STATE_WIFI_SCAN);
+  } else if (key == 'B') {
+    changeState(STATE_CONN_PREFERENCE);
+  } else if (key == 'C') {
+    changeState(STATE_CONN_INFO);
+  } else if (key == '*') {
+    changeState(STATE_IDLE);
+  }
+}
+
+// ─── WIFI SCAN ────────────────────────────────────────────────────────
+
+void handleWifiScanState(char key) {
+  if (previousState != STATE_WIFI_SCAN) {
+    previousState = STATE_WIFI_SCAN;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Scanning WiFi...");
+    lcd.setCursor(0, 1);
+    lcd.print("Please wait");
+
+    // Perform WiFi scan
+    wifiScanCount = connManager.scanWifi(wifiScanSSIDs, wifiScanRSSI, MAX_WIFI_SCAN_RESULTS);
+    wifiSelectIndex = 0;
+
+    if (wifiScanCount == 0) {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("No WiFi found");
+      lcd.setCursor(0, 1);
+      lcd.print("B=Manual *=Back");
+    } else {
+      changeState(STATE_WIFI_SELECT);
+    }
+  }
+
+  // Only reachable if no networks found
+  if (key == 'B') {
+    keypadInput.begin("SSID:", 32, false);
+    changeState(STATE_WIFI_SSID_ENTRY);
+  } else if (key == '*') {
+    changeState(STATE_SETTINGS);
+  }
+}
+
+// ─── WIFI SELECT (scroll through scan results) ───────────────────────
+
+void handleWifiSelectState(char key) {
+  if (previousState != STATE_WIFI_SELECT) {
+    previousState = STATE_WIFI_SELECT;
+  }
+
+  // Always redraw (index may have changed)
+  static int lastDrawnIndex = -1;
+  if (lastDrawnIndex != wifiSelectIndex) {
+    lastDrawnIndex = wifiSelectIndex;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+
+    // Show current SSID (truncate to 16 chars)
+    String ssid = wifiScanSSIDs[wifiSelectIndex];
+    if (ssid.length() > 16) ssid = ssid.substring(0, 16);
+    lcd.print(ssid);
+
+    lcd.setCursor(0, 1);
+    lcd.printf("%ddBm %d/%d #=OK", wifiScanRSSI[wifiSelectIndex],
+               wifiSelectIndex + 1, wifiScanCount);
+  }
+
+  if (key == '2' || key == 'A') {
+    // Scroll up
+    if (wifiSelectIndex > 0) wifiSelectIndex--;
+  } else if (key == '8' || key == 'C') {
+    // Scroll down
+    if (wifiSelectIndex < wifiScanCount - 1) wifiSelectIndex++;
+  } else if (key == '#') {
+    // Select this network
+    wifiSelectedSSID = wifiScanSSIDs[wifiSelectIndex];
+    lastDrawnIndex = -1;
+    keypadInput.begin("Password:", 63, true);
+    changeState(STATE_WIFI_PASSWORD);
+  } else if (key == 'B') {
+    // Manual SSID entry
+    lastDrawnIndex = -1;
+    keypadInput.begin("SSID:", 32, false);
+    changeState(STATE_WIFI_SSID_ENTRY);
+  } else if (key == '*') {
+    lastDrawnIndex = -1;
+    changeState(STATE_SETTINGS);
+  }
+}
+
+// ─── WIFI SSID MANUAL ENTRY (multi-tap) ──────────────────────────────
+
+void handleWifiSsidEntryState(char key) {
+  if (previousState != STATE_WIFI_SSID_ENTRY) {
+    previousState = STATE_WIFI_SSID_ENTRY;
+    // Initial draw
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(keypadInput.getLine0());
+    lcd.setCursor(0, 1);
+    lcd.print(keypadInput.getLine1());
+  }
+
+  // Feed key to multi-tap input
+  if (key) {
+    KeypadInputResult result = keypadInput.feedKey(key);
+    if (result == KI_CONFIRMED) {
+      wifiSelectedSSID = keypadInput.getText();
+      if (wifiSelectedSSID.length() > 0) {
+        keypadInput.begin("Password:", 63, true);
+        changeState(STATE_WIFI_PASSWORD);
+      }
+      return;
+    } else if (result == KI_CANCELLED) {
+      changeState(STATE_SETTINGS);
+      return;
+    }
+  }
+
+  // Update LCD if needed
+  if (keypadInput.needsRedraw()) {
+    lcd.setCursor(0, 0);
+    lcd.print(keypadInput.getLine0());
+    lcd.setCursor(0, 1);
+    lcd.print(keypadInput.getLine1());
+  }
+}
+
+// ─── WIFI PASSWORD ENTRY (multi-tap, masked) ─────────────────────────
+
+void handleWifiPasswordState(char key) {
+  if (previousState != STATE_WIFI_PASSWORD) {
+    previousState = STATE_WIFI_PASSWORD;
+    // Initial draw
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(keypadInput.getLine0());
+    lcd.setCursor(0, 1);
+    lcd.print(keypadInput.getLine1());
+  }
+
+  if (key) {
+    KeypadInputResult result = keypadInput.feedKey(key);
+    if (result == KI_CONFIRMED) {
+      String password = keypadInput.getText();
+      // Save credentials and attempt connection
+      connManager.setWifiCredentials(wifiSelectedSSID, password);
+      changeState(STATE_WIFI_CONNECTING);
+      return;
+    } else if (result == KI_CANCELLED) {
+      // Go back to scan/select
+      changeState(STATE_WIFI_SCAN);
+      return;
+    }
+  }
+
+  if (keypadInput.needsRedraw()) {
+    lcd.setCursor(0, 0);
+    lcd.print(keypadInput.getLine0());
+    lcd.setCursor(0, 1);
+    lcd.print(keypadInput.getLine1());
+  }
+}
+
+// ─── WIFI CONNECTING ──────────────────────────────────────────────────
+
+void handleWifiConnectingState(char key) {
+  static bool connectionAttempted = false;
+  static bool showingResult = false;
+
+  if (previousState != STATE_WIFI_CONNECTING) {
+    previousState = STATE_WIFI_CONNECTING;
+    connectionAttempted = false;
+    showingResult = false;
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Connecting WiFi");
+    lcd.setCursor(0, 1);
+
+    String ssid = wifiSelectedSSID;
+    if (ssid.length() > 16) ssid = ssid.substring(0, 16);
+    lcd.print(ssid);
+  }
+
+  // Attempt connection once (blocks ~15s with watchdog feeds inside)
+  if (!connectionAttempted) {
+    connectionAttempted = true;
+    connManager.connectWifi();  // Blocks up to WIFI_CONNECT_TIMEOUT_MS
+
+    // Show result immediately after blocking call returns
+    lcd.clear();
+    lcd.setCursor(0, 0);
+
+    if (connManager.wifi()->isConnected()) {
+      lcd.print("WiFi Connected!");
+      lcd.setCursor(0, 1);
+      lcd.printf("IP:%s", connManager.wifi()->getIPAddress().substring(0, 15).c_str());
+      showingResult = true;
+      stateEnteredMs = millis();  // Reset for result display timeout
+    } else {
+      lcd.print("WiFi Failed");
+      lcd.setCursor(0, 1);
+      lcd.print("#=Retry *=Back");
+      showingResult = false;
+    }
+    return;
+  }
+
+  // If showing success, auto-return to IDLE after 2s
+  if (showingResult) {
+    if (millis() - stateEnteredMs > 2000) {
+      changeState(STATE_IDLE);
+    }
+    return;
+  }
+
+  // Showing failure — wait for user input
+  if (key == '#') {
+    // Retry — reset state to trigger another attempt
+    connectionAttempted = false;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Connecting WiFi");
+    lcd.setCursor(0, 1);
+    String ssid = wifiSelectedSSID;
+    if (ssid.length() > 16) ssid = ssid.substring(0, 16);
+    lcd.print(ssid);
+  } else if (key == '*') {
+    changeState(STATE_SETTINGS);
+  }
+}
+
+// ─── CONNECTION PREFERENCE ────────────────────────────────────────────
+
+void handleConnPreferenceState(char key) {
+  if (previousState != STATE_CONN_PREFERENCE) {
+    previousState = STATE_CONN_PREFERENCE;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    ConnPreference pref = connManager.getPreference();
+    lcd.printf("Now: %s first", pref == PREF_WIFI_FIRST ? "WiFi" : "GSM");
+    lcd.setCursor(0, 1);
+    lcd.print("A=WiFi B=GSM *=X");
+  }
+
+  if (key == 'A') {
+    connManager.setPreference(PREF_WIFI_FIRST);
+    lcd.setCursor(0, 0);
+    lcd.print("Set: WiFi first ");
+    delay(1000);
+    changeState(STATE_SETTINGS);
+  } else if (key == 'B') {
+    connManager.setPreference(PREF_GSM_FIRST);
+    lcd.setCursor(0, 0);
+    lcd.print("Set: GSM first  ");
+    delay(1000);
+    changeState(STATE_SETTINGS);
+  } else if (key == '*') {
+    changeState(STATE_SETTINGS);
+  }
+}
+
+// ─── CONNECTION INFO ──────────────────────────────────────────────────
+
+void handleConnInfoState(char key) {
+  if (previousState != STATE_CONN_INFO) {
+    previousState = STATE_CONN_INFO;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+
+    if (connManager.isConnected()) {
+      String transport = connManager.getTransportName();
+      lcd.printf("%s %ddBm", transport.c_str(), connManager.getRSSI());
+      lcd.setCursor(0, 1);
+      if (connManager.getActive() == CONN_WIFI) {
+        // Show IP
+        String ip = connManager.wifi()->getIPAddress();
+        if (ip.length() > 16) ip = ip.substring(0, 16);
+        lcd.print(ip);
+      } else {
+        lcd.print("GPRS Active");
+      }
+    } else {
+      lcd.print("Not Connected");
+      lcd.setCursor(0, 1);
+      String ssid = connManager.getWifiSSID();
+      if (ssid.length() > 0) {
+        lcd.printf("WiFi:%s", ssid.substring(0, 11).c_str());
+      } else {
+        lcd.print("No WiFi config");
+      }
+    }
+  }
+
+  // Any key goes back
+  if (key) {
+    changeState(STATE_SETTINGS);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  OTA UPDATE HANDLER
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1061,26 +1492,3 @@ void handleOtaUpdate(const String& otaVersion, const String& otaUrl) {
   }
 }
 
-/**
- * Save NVS-persistent offline sale on dispensing complete.
- * Called when the network is down and the in-memory queue might be lost.
- */
-void saveToNvs(float litres, float amount, const char* paymentType,
-               const char* voucherCode, const char* phone) {
-  #if NVS_ENABLED
-  OfflineSale sale;
-  sale.litres = litres;
-  sale.amount = amount;
-  strncpy(sale.paymentType, paymentType, sizeof(sale.paymentType) - 1);
-  sale.paymentType[sizeof(sale.paymentType) - 1] = '\0';
-  strncpy(sale.voucherCode, voucherCode ? voucherCode : "", sizeof(sale.voucherCode) - 1);
-  sale.voucherCode[sizeof(sale.voucherCode) - 1] = '\0';
-  strncpy(sale.phone, phone ? phone : "", sizeof(sale.phone) - 1);
-  sale.phone[sizeof(sale.phone) - 1] = '\0';
-  sale.timestamp = millis() / 1000;
-
-  nvsStorage.pushOfflineSale(sale);
-  nvsStorage.addDispensedLitres(litres);
-  nvsStorage.incrementPumpCycles();
-  #endif
-}

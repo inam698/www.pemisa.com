@@ -75,6 +75,19 @@ public:
   uint32_t getErrorCount();
   void resetErrorCount();
 
+  // ─── WiFi Credentials ────────────────────────────────────
+
+  void setWifiSSID(const String& ssid);
+  String getWifiSSID(const String& defaultVal = "");
+
+  void setWifiPassword(const String& password);
+  String getWifiPassword(const String& defaultVal = "");
+
+  // ─── Connectivity Preference ────────────────────────────
+
+  void setConnPreference(int pref);   // 0=WiFi first, 1=GSM first
+  int  getConnPreference(int defaultVal = 0);
+
   // ─── OTA State ────────────────────────────────────────────
 
   void setLastFirmwareVersion(const String& version);
