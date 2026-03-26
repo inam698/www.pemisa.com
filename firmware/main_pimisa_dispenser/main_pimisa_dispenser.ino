@@ -854,7 +854,7 @@ void handleCompleteState(char key) {
     previousState = STATE_COMPLETE;
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.printf("Done! %.2fL", litresDispensed);
+    lcd.printf("Done! %.2fL", targetLitres);
     lcd.setCursor(0, 1);
     lcd.print("K" + String(transactionAmount, 0) + " #=Menu");
   }
